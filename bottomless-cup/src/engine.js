@@ -186,23 +186,26 @@ function tick(s, dt) {
 
 function click(s) { const r = rates(s); addCups(s, r.clickPower); return r.clickPower; }
 
-function buy(s, id, n = 1) {
+function buy(s, id, n = 1, free = false) {
   const c = costOf(s, id, n);
-  if (n < 1 || c > s.cups) return false;
-  s.cups -= c; s.owned[id] += n; return true;
+  if (n < 1 || (!free && c > s.cups)) return false;
+  if (!free) s.cups -= c;
+  s.owned[id] += n; return true;
 }
 
-function upgradeAvailable(s, u) {
+// free = testing mode: ignore cost. Requirements (building counts, max levels) still apply.
+function upgradeAvailable(s, u, free = false) {
   if (s.upgrades[u.id]) return false;
   if (u.need && s.owned[u.need.id] < u.need.n) return false;
-  return s.runCups >= u.cost * 0.5 || s.cups >= u.cost; // reveal once you are close
+  return free || s.runCups >= u.cost * 0.5 || s.cups >= u.cost; // reveal once you are close
 }
 
-function buyUpgrade(s, id) {
+function buyUpgrade(s, id, free = false) {
   const u = UPGRADES.find(x => x.id === id);
-  if (!u || s.upgrades[id] || s.cups < u.cost) return false;
+  if (!u || s.upgrades[id] || (!free && s.cups < u.cost)) return false;
   if (u.need && s.owned[u.need.id] < u.need.n) return false;
-  s.cups -= u.cost; s.upgrades[id] = true; return true;
+  if (!free) s.cups -= u.cost;
+  s.upgrades[id] = true; return true;
 }
 
 function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
@@ -232,10 +235,11 @@ function ascend(s) {
   return gain;
 }
 
-function buyLegacy(s, id) {
+function buyLegacy(s, id, free = false) {
   const p = LEGACY.find(x => x.id === id), lvl = s.legacy[id] || 0;
-  if (!p || lvl >= p.max || s.tokens < p.cost) return false;
-  s.tokens -= p.cost; s.legacy[id] = lvl + 1; return true;
+  if (!p || lvl >= p.max || (!free && s.tokens < p.cost)) return false;
+  if (!free) s.tokens -= p.cost;
+  s.legacy[id] = lvl + 1; return true;
 }
 
 // ---- Offline progress ----

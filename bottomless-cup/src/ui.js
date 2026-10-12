@@ -59,6 +59,10 @@
 
   // ---------- Tabs ----------
   let tab = 'build', buyMode = 1, confirmCafe = false, confirmGlobal = false, sig = '';
+  // Testing toggle: buildings, upgrades and Legacy perks cost nothing (you still buy each one).
+  // Not saved, so it is off after a reload.
+  let freeBuys = false;
+  const freeBtn = () => `<button class="ghost" data-act="free" aria-pressed="${freeBuys}">Free buying: ${freeBuys ? 'ON' : 'off'}</button>`;
   document.querySelector('.tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab'); if (!b) return;
     tab = b.dataset.tab; confirmCafe = confirmGlobal = false;
@@ -81,7 +85,7 @@
     const v = $('view');
     if (tab === 'build') {
       const m = E.mods(S);
-      v.innerHTML = `<div class="toolbar"><p>Buy for your <b>bottleneck</b> stage first.</p>
+      v.innerHTML = `<div class="toolbar"><p>Buy for your <b>bottleneck</b> stage first.</p>${freeBtn()}
         <div class="seg" role="group" aria-label="Buy amount">
           ${[1, 10, 'max'].map(n => `<button data-mode="${n}" aria-pressed="${buyMode === n}">${n === 'max' ? 'Max' : 'x' + n}</button>`).join('')}
         </div></div>` +
@@ -93,9 +97,9 @@
               <span class="d">${fmt(b.rate)} ${st.unit} each${b.yield ? ` · ${b.perk}` : ''}</span>
             </button>`).join('') + `</div></div>`).join('');
     } else if (tab === 'upg') {
-      const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u)).sort((a, b) => a.cost - b.cost);
+      const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost);
       sig = list.map(u => u.id).join();
-      v.innerHTML = `<div class="toolbar"><p>One-time purchases. New ones appear as you grow.</p></div>` +
+      v.innerHTML = `<div class="toolbar"><p>One-time purchases. New ones appear as you grow.</p>${freeBtn()}</div>` +
         (list.length ? `<div class="list">` + list.map(u => `
           <button class="item" data-upg="${u.id}">
             <span class="t">${u.name}</span>
@@ -122,7 +126,7 @@
         </div>
         <div class="panel"><p>Stars held <b class="num">${S.stars}</b> · earned this ascension <b class="num">${S.starsEarned}</b> · cafés opened <b class="num">${S.prestiges}</b></p></div>`;
     } else if (tab === 'global') {
-      v.innerHTML = `<div class="toolbar"><p>Ascension: trade every Star for Origin Tokens.</p></div>
+      v.innerHTML = `<div class="toolbar"><p>Ascension: trade every Star for Origin Tokens.</p>${freeBtn()}</div>
         <div class="panel">
           <h3>Go Global</h3>
           <p>Resets your run and all Reputation Stars${S.legacy.vault ? '' : ' and bean unlocks'}. Origin Tokens buy permanent Legacy perks below.</p>
@@ -151,11 +155,12 @@
   $('view').addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.mode) { buyMode = t.dataset.mode === 'max' ? 'max' : +t.dataset.mode; render(); return; }
-    if (t.dataset.buy) { E.buy(S, t.dataset.buy, buyCount(t.dataset.buy)); refresh(); return; }
-    if (t.dataset.upg) { if (E.buyUpgrade(S, t.dataset.upg)) { toast('Upgrade bought.'); render(); } return; }
+    if (t.dataset.buy) { E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys); refresh(); return; }
+    if (t.dataset.upg) { if (E.buyUpgrade(S, t.dataset.upg, freeBuys)) { toast('Upgrade bought.'); render(); } return; }
     if (t.dataset.bean) { E.setBean(S, t.dataset.bean); render(); return; }
-    if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy)) { toast('Legacy perk bought.'); save(); render(); } return; }
+    if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy, freeBuys)) { toast('Legacy perk bought.'); save(); render(); } return; }
     const a = t.dataset.act;
+    if (a === 'free') { freeBuys = !freeBuys; toast(freeBuys ? 'Free buying on (testing).' : 'Free buying off.'); render(); return; }
     if (a === 'cancel') { confirmCafe = confirmGlobal = false; refresh(); }
     if (a === 'cafe') {
       if (!confirmCafe) { confirmCafe = true; refresh(); return; }
@@ -221,12 +226,12 @@
         b.querySelector('[data-own]').textContent = S.owned[id];
         b.querySelector('[data-cost]').textContent = fmt(c);
         b.querySelector('[data-cnt]').textContent = 'buy ' + n;
-        b.disabled = c > S.cups;
+        b.disabled = !freeBuys && c > S.cups;
       });
     } else if (tab === 'upg') {
-      const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
+      const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
       if (now !== sig) return render();
-      v.querySelectorAll('[data-upg]').forEach(b => { b.disabled = E.UPGRADES.find(u => u.id === b.dataset.upg).cost > S.cups; });
+      v.querySelectorAll('[data-upg]').forEach(b => { b.disabled = !freeBuys && E.UPGRADES.find(u => u.id === b.dataset.upg).cost > S.cups; });
     } else if (tab === 'cafe') {
       const p = E.pendingStars(S);
       const perStar = 2 + (S.legacy.starpower || 0);
@@ -255,11 +260,11 @@
         const p2 = E.LEGACY.find(x => x.id === b.dataset.legacy), lvl = S.legacy[p2.id] || 0;
         b.querySelector('[data-own]').textContent = p2.max > 1 ? `${lvl}/${p2.max}` : (lvl ? 'owned' : '');
         b.querySelector('[data-cost]').textContent = lvl >= p2.max ? 'Maxed' : p2.cost + ' tok';
-        b.disabled = lvl >= p2.max || S.tokens < p2.cost;
+        b.disabled = lvl >= p2.max || (!freeBuys && S.tokens < p2.cost);
       });
     }
     // dot on Upgrades tab when something is affordable
-    $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u) && u.cost <= S.cups);
+    $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u, freeBuys) && (freeBuys || u.cost <= S.cups));
   }
 
   // ---------- Game loop ----------
@@ -282,12 +287,14 @@
 
   // ---------- Dev helpers (open DevTools console: Ctrl+Shift+I) ----------
   // BC.give(1e6) adds cups, BC.skip(3600) fast-forwards an hour, BC.state() shows the save.
+  // BC.free() toggles free buying (same as the button on the Build, Upgrades and Go Global tabs).
   window.BC = {
     state: () => S,
     give: n => { S.cups += n; S.runCups += n; S.lifetimeCups += n; render(); },
     skip: secs => { for (let i = 0; i < secs; i++) E.tick(S, 1); render(); },
     stars: n => { S.stars += n; S.starsEarned += n; E.BEANS.forEach(b => { if (S.starsEarned >= b.stars) S.beansUnlocked[b.id] = true; }); render(); },
     tokens: n => { S.tokens += n; render(); },
+    free: (on = !freeBuys) => { freeBuys = on; render(); return freeBuys; },
   };
 
   render();

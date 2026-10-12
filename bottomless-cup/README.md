@@ -59,5 +59,6 @@ npm run start:nosandbox
   - `BC.skip(3600)` fast-forward one hour of production
   - `BC.stars(1000)` add Reputation Stars (unlocks beans, enables Go Global)
   - `BC.tokens(10)` add Origin Tokens for Legacy perks
+  - `BC.free()` toggle free buying for buildings, upgrades and Legacy perks (also a button on the Build, Upgrades and Go Global tabs). Requirements still apply, and it turns off on reload.
   - `BC.state()` look at the whole save
 - **Start fresh:** Save tab, then Erase save.
