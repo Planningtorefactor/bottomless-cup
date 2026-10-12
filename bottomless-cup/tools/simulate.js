@@ -24,13 +24,15 @@ function botStep(s, t) {
   // (hiring the instant you can afford one starves building purchases)
   for (const b of [...E.BUILDINGS].sort((x, y) => x.manager - y.manager))
     if (s.owned[b.id] && !s.managers[b.id] && s.cups >= 3 * b.manager) E.buyManager(s, b.id);
+  // unlock building tiers as soon as we can
+  for (const b of E.BUILDINGS) E.unlock(s, b.id);
   // buy every affordable upgrade
   for (const u of E.UPGRADES) if (E.upgradeAvailable(s, u) && s.cups >= u.cost) E.buyUpgrade(s, u.id);
   // buy for the bottleneck stage, best output per cup
   for (let i = 0; i < 50; i++) {
     const r = E.rates(s);
     const stage = r.bottleneck || 'farm';
-    const pick = E.BUILDINGS.filter(b => b.stage === stage)
+    const pick = E.BUILDINGS.filter(b => b.stage === stage && E.isUnlocked(s, b.id))
       .sort((x, y) => y.rate / E.costOf(s, y.id) - x.rate / E.costOf(s, x.id))[0];
     if (E.costOf(s, pick.id) > s.cups) break;
     E.buy(s, pick.id, 1);
@@ -79,8 +81,8 @@ const rule = st => { const p = E.pendingStars(st); return p >= Math.max(10, st.s
 for (let run = 1; run <= 200 && s.stars < E.ASCEND_MIN; run++) {
   const t = playRun(s, rule, 12 * 3600);
   total += t;
-  const g = E.prestige(s);
-  console.log(`prestige ${run}: run ${hms(t)}, +${g} stars -> ${s.stars} (total ${hms(total)}) bean ${s.bean}`);
+  const cost = E.prestigeCost(s), g = E.prestige(s);
+  console.log(`prestige ${run}: cost ${E.fmt(cost)}, run ${hms(t)}, +${g} stars -> ${s.stars} (total ${hms(total)}) bean ${s.bean}`);
 }
 console.log(`Ascension 1 reached at ${hms(total)}, tokens ${E.pendingTokens(s)}`);
 E.ascend(s);

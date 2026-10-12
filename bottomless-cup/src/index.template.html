@@ -59,6 +59,15 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .cupbtn:active svg { transform: scale(.96) rotate(-2deg); }
 .cuplabel { text-align: center; font-size: .85rem; color: var(--muted); margin-top: -4px; }
 .cuplabel b { color: var(--ink); }
+/* Cup = progress toward Open a New Cafe. Full, glowing and steaming once you can prestige. */
+.goal { display: block; margin: 4px auto 0; background: none; border: 0; padding: 2px 8px; font-size: .82rem; color: var(--muted); }
+.goal.ready { color: var(--crema); font-weight: 600; }
+#steam { opacity: .45; }
+.cupbtn.ready #steam { animation: steam 1.6s ease-in-out infinite; }
+@keyframes steam { 0% { transform: translateY(6px); opacity: 0; } 40% { opacity: .9; } 100% { transform: translateY(-8px); opacity: 0; } }
+.cupbtn.ready svg { animation: glow 2s ease-in-out infinite; }
+@keyframes glow { 50% { filter: drop-shadow(0 0 12px var(--crema)); } }
+@media (prefers-reduced-motion: reduce) { .cupbtn.ready #steam, .cupbtn.ready svg { animation: none; } }
 .pop { position: absolute; pointer-events: none; font-family: var(--display); font-weight: 800; color: var(--crema); font-size: 1.15rem; animation: rise .9s ease-out forwards; }
 @keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-60px); } }
 @media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 0; } .cupbtn svg { transition: none; } }
@@ -111,6 +120,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .item .p { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: var(--mono); font-size: .88rem; }
 .item .p small { display: block; color: var(--muted); font-family: var(--body); font-size: .7rem; }
 .item.sel { border-color: var(--crema); background: var(--crema-soft); }
+
+/* Expansion: next locked tier per stage */
+.next { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; background: none; color: var(--muted); font-size: .8rem; text-align: left; }
+.next b { color: var(--ink); }
+.next.ready { border-color: var(--crema); color: var(--crema); }
+.unl .need { display: grid; gap: 6px; font-size: .8rem; color: var(--muted); }
+.unl .cyc i { background: var(--c); }
 
 /* Building rows: click the left side to run a cycle, buy and hire on the right */
 .bld { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 128px; gap: 6px 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
@@ -188,7 +204,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
         <button class="cupbtn" id="brew" aria-label="Hand brew a cup">
           <svg viewBox="0 0 220 190" aria-hidden="true">
             <defs><clipPath id="cupclip"><path d="M40 52 H170 L160 150 Q158 168 140 168 H70 Q52 168 50 150 Z"/></clipPath></defs>
-            <path d="M80 40 q-8 -14 0 -26 M105 40 q-8 -14 0 -26 M130 40 q-8 -14 0 -26" fill="none" stroke="var(--muted)" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+            <path id="steam" d="M80 40 q-8 -14 0 -26 M105 40 q-8 -14 0 -26 M130 40 q-8 -14 0 -26" fill="none" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
             <g clip-path="url(#cupclip)">
               <rect x="30" y="52" width="150" height="120" fill="var(--panel)"/>
               <rect id="fill" x="30" y="168" width="150" height="120" fill="var(--roast)"/>
@@ -200,6 +216,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
           </svg>
         </button>
         <div class="cuplabel">Click to hand brew · <b class="num" id="clickpow">1</b> cups per click</div>
+        <button class="goal" id="goal"></button>
       </div>
 
       <div class="chain">
@@ -216,6 +233,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
     <section class="shop" aria-label="Shop">
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" data-tab="build" aria-selected="true">Buildings</button>
+        <button class="tab" role="tab" data-tab="expand" aria-selected="false">Expansion<span class="dot" id="expdot" hidden></span></button>
         <button class="tab" role="tab" data-tab="upg" aria-selected="false">Upgrades<span class="dot" id="upgdot" hidden></span></button>
         <button class="tab" role="tab" data-tab="beans" aria-selected="false">Beans</button>
         <button class="tab" role="tab" data-tab="cafe" aria-selected="false">New Café</button>

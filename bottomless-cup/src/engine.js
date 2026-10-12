@@ -34,10 +34,16 @@ const BUILDINGS = [
 // A batch is rate * cycle, so the average output per second matches the rate above.
 const CYCLE_BY_TIER = [1, 3, 6, 12, 24];   // seconds, tier 1..5 within each stage
 const MANAGER_MULT = 20;                    // manager price = building base cost * this
+// Only tier 1 of each stage is open at the start of a run. Higher tiers are unlocked in the
+// Expansion tab for cups, once you own UNLOCK_NEED of the tier below.
+const UNLOCK_MULT = 2;                      // unlock price = building base cost * this
+const UNLOCK_NEED = 25;
 for (const st of ['farm', 'roast', 'brew']) {
-  BUILDINGS.filter(b => b.stage === st).forEach((b, i) => {
+  BUILDINGS.filter(b => b.stage === st).forEach((b, i, list) => {
     b.cycle = CYCLE_BY_TIER[i];
     b.manager = b.cost * MANAGER_MULT;
+    b.tier = i + 1;
+    if (i > 0) { b.prev = list[i - 1].id; b.unlock = b.cost * UNLOCK_MULT; }
   });
 }
 
@@ -85,7 +91,8 @@ const LEGACY = [
   { id: 'autobuy',   name: 'Operations Manager',  cost: 4, max: 1, desc: 'Auto-buys a building for your bottleneck stage every 2 seconds.' },
 ];
 
-const PRESTIGE_MIN = 1e6;   // cups this run needed to Open a New Cafe
+const PRESTIGE_MIN = 1e6;   // cups this run needed for the first New Cafe of an ascension
+const PRESTIGE_GROWTH = 2;  // ...and each New Cafe after that needs this many times more
 const ASCEND_MIN = 1000;    // Stars needed to Go Global
 
 function newRun(state) {
@@ -99,6 +106,7 @@ function newRun(state) {
   state.progress = {};   // seconds into the current cycle, per building
   state.running = {};    // unmanaged buildings started by a click (run one cycle)
   state.fill = {};       // share of the last batch a roaster/brewer actually got (1 = full)
+  state.unlocked = {};   // higher-tier buildings unlocked this run
   if (!(state.legacy || {}).staff || !state.managers) state.managers = {};
   if ((state.legacy || {}).headstart) {
     state.owned.bush = 5; state.owned.pan = 5; state.owned.drip = 5;
@@ -117,6 +125,7 @@ function newGame() {
     tokens: 0,           // unspent Origin Tokens
     legacy: {},          // legacy perk levels
     prestiges: 0,
+    cafes: 0,            // New Cafes opened this ascension (raises the next one's cost)
     ascensions: 0,
     managers: {},        // building id -> true once a manager is hired
     lastSave: Date.now(),
@@ -126,6 +135,22 @@ function newGame() {
 }
 
 function bld(id) { return BUILDINGS.find(b => b.id === id); }
+
+// Tier 1 is always open. Owning any copies also counts, so saves from before unlocks still work.
+function isUnlocked(s, id) { return !bld(id).prev || !!s.unlocked[id] || s.owned[id] > 0; }
+
+// Next tier is ready to unlock once you own enough of the tier below.
+function canUnlock(s, id, free = false) {
+  const b = bld(id);
+  if (!b.prev || isUnlocked(s, id) || !isUnlocked(s, b.prev)) return false;
+  return s.owned[b.prev] >= UNLOCK_NEED && (free || s.cups >= b.unlock);
+}
+
+function unlock(s, id, free = false) {
+  if (!canUnlock(s, id, free)) return false;
+  if (!free) s.cups -= bld(id).unlock;
+  s.unlocked[id] = true; return true;
+}
 
 function costOf(s, id, n = 1) {
   const b = bld(id), k = s.owned[id];
@@ -244,7 +269,7 @@ function tick(s, dt) {
     if (s.autoTimer >= 2) {
       s.autoTimer = 0;
       const stage = r.bottleneck || 'farm';
-      const best = BUILDINGS.filter(b => b.stage === stage && costOf(s, b.id) <= s.cups)
+      const best = BUILDINGS.filter(b => b.stage === stage && isUnlocked(s, b.id) && costOf(s, b.id) <= s.cups)
         .sort((x, y) => y.rate / costOf(s, y.id) - x.rate / costOf(s, x.id))[0];
       if (best) buy(s, best.id, 1);
     }
@@ -256,7 +281,7 @@ function click(s) { const r = rates(s); addCups(s, r.clickPower); return r.click
 
 function buy(s, id, n = 1, free = false) {
   const c = costOf(s, id, n);
-  if (n < 1 || (!free && c > s.cups)) return false;
+  if (n < 1 || !isUnlocked(s, id) || (!free && c > s.cups)) return false;
   if (!free) s.cups -= c;
   s.owned[id] += n; return true;
 }
@@ -279,12 +304,14 @@ function buyUpgrade(s, id, free = false) {
 function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
 
 // ---- Prestige: Open a New Cafe ----
-function pendingStars(s) { return s.runCups < PRESTIGE_MIN ? 0 : Math.floor(10 * Math.cbrt(s.runCups / 1e6)); }
+// Cups this run needed to Open a New Cafe: 1M, 2M, 4M... resets when you Go Global.
+function prestigeCost(s) { return PRESTIGE_MIN * Math.pow(PRESTIGE_GROWTH, s.cafes || 0); }
+function pendingStars(s) { return s.runCups < prestigeCost(s) ? 0 : Math.floor(10 * Math.cbrt(s.runCups / 1e6)); }
 
 function prestige(s) {
   const gain = pendingStars(s);
   if (gain <= 0) return 0;
-  s.stars += gain; s.starsEarned += gain; s.prestiges++;
+  s.stars += gain; s.starsEarned += gain; s.prestiges++; s.cafes = (s.cafes || 0) + 1;
   for (const b of BEANS) if (s.starsEarned >= b.stars) s.beansUnlocked[b.id] = true;
   newRun(s);
   return gain;
@@ -297,7 +324,7 @@ function ascend(s) {
   const gain = pendingTokens(s);
   if (gain <= 0) return 0;
   s.tokens += gain; s.ascensions++;
-  s.stars = 0; s.starsEarned = 0;
+  s.stars = 0; s.starsEarned = 0; s.cafes = 0;
   if (!s.legacy.vault) { s.beansUnlocked = { arabica: true }; s.bean = 'arabica'; }
   newRun(s);
   return gain;
@@ -336,8 +363,8 @@ function fmt(n) {
 }
 
 const Engine = {
-  GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN,
-  newGame, newRun, costOf, maxAffordable, mods, cycleTime, batch, rates, tick, click, buy, runBuilding, buyManager,
+  GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN, UNLOCK_NEED,
+  newGame, newRun, isUnlocked, canUnlock, unlock, prestigeCost, costOf, maxAffordable, mods, cycleTime, batch, rates, tick, click, buy, runBuilding, buyManager,
   upgradeAvailable, buyUpgrade,
   setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt,
 };

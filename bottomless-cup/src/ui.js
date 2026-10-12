@@ -56,6 +56,8 @@
     pulse = 1;
   });
   let pulse = 0;
+  // The cup label jumps to the New Cafe tab (most useful once you can prestige).
+  $('goal').addEventListener('click', () => document.querySelector('.tab[data-tab="cafe"]').click());
 
   // ---------- Tabs ----------
   let tab = 'build', buyMode = 1, confirmCafe = false, confirmGlobal = false, sig = '';
@@ -63,6 +65,7 @@
   // Not saved, so it is off after a reload.
   let freeBuys = false;
   let bars = [];   // building rows' cycle bars, filled in by render()
+  let wasReady = S.runCups >= E.prestigeCost(S);   // celebrate only when this flips during play
   const freeBtn = () => `<button class="ghost" data-act="free" aria-pressed="${freeBuys}">Free buying: ${freeBuys ? 'ON' : 'off'}</button>`;
   document.querySelector('.tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab'); if (!b) return;
@@ -76,6 +79,15 @@
     { k: 'roast', title: 'Roasters', unit: 'roasted beans/s', c: 'var(--roast)' },
     { k: 'brew', title: 'Brewers', unit: 'beans brewed/s', c: 'var(--crema)' },
   ];
+
+  // Which tiers are open; render() rebuilds the Buildings/Expansion tabs when this changes.
+  const unlockSig = () => E.BUILDINGS.filter(b => E.isUnlocked(S, b.id)).map(b => b.id).join();
+  // Dashed row under a stage's buildings pointing at its next locked tier.
+  function nextTier(stage) {
+    const b = E.BUILDINGS.find(x => x.stage === stage && !E.isUnlocked(S, x.id));
+    return b ? `<button class="next" data-next="${b.id}" data-goto="expand">
+      <span>Next: <b>${b.name}</b> · unlock in Expansion</span><small data-next-txt></small></button>` : '';
+  }
 
   function buyCount(id) {
     if (buyMode === 'max') return Math.max(1, E.maxAffordable(S, id));
@@ -91,7 +103,7 @@
           ${[1, 10, 'max'].map(n => `<button data-mode="${n}" aria-pressed="${buyMode === n}">${n === 'max' ? 'Max' : 'x' + n}</button>`).join('')}
         </div></div>` +
         STAGES.map(st => `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4><div class="list">` +
-          E.BUILDINGS.filter(b => b.stage === st.k).map(b => `
+          E.BUILDINGS.filter(b => b.stage === st.k && E.isUnlocked(S, b.id)).map(b => `
             <div class="bld" data-id="${b.id}">
               <button class="run" data-run="${b.id}" title="${b.perk || ''}">
                 <span class="t">${b.name}<span class="own" data-own></span></span>
@@ -100,8 +112,22 @@
               </button>
               <button class="buy" data-buy="${b.id}"><span data-cost></span><small data-cnt></small></button>
               <button class="mgr" data-mgr="${b.id}"></button>
-            </div>`).join('') + `</div></div>`).join('');
+            </div>`).join('') + nextTier(st.k) + `</div></div>`).join('');
+      sig = unlockSig();
       bars = [...v.querySelectorAll('.bld')].map(el => ({ id: el.dataset.id, i: el.querySelector('.cyc i') }));
+    } else if (tab === 'expand') {
+      v.innerHTML = `<div class="toolbar"><p>Unlock bigger buildings. Each needs ${E.UNLOCK_NEED} of the tier below. Unlocks reset when you open a new café.</p>${freeBtn()}</div>` +
+        STAGES.map(st => {
+          const b = E.BUILDINGS.find(x => x.stage === st.k && !E.isUnlocked(S, x.id));
+          return `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4>` + (b ? `
+            <div class="panel unl" data-unl-row="${b.id}">
+              <div class="row" style="justify-content:space-between"><h3>${b.name}</h3><span class="num">tier ${b.tier}</span></div>
+              <p>${fmt(b.rate)} ${st.unit} each, every ${b.cycle}s.${b.perk ? ' ' + b.perk : ''}</p>
+              <div class="need"><span data-need-txt></span><span class="cyc"><i data-need-bar></i></span></div>
+              <button class="act" data-unl="${b.id}"></button>
+            </div>` : `<p class="empty">Every ${st.title.toLowerCase().slice(0, -1)} tier is unlocked.</p>`) + `</div>`;
+        }).join('');
+      sig = unlockSig();
     } else if (tab === 'upg') {
       const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost);
       sig = list.map(u => u.id).join();
@@ -125,7 +151,8 @@
       v.innerHTML = `<div class="toolbar"><p>Prestige: sell this café and open a new one.</p></div>
         <div class="panel">
           <h3>Open a New Café</h3>
-          <p>Resets cups, buildings, stockpiles and upgrades. Keeps Stars, bean unlocks and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
+          <p>Costs <b class="num">${fmt(E.prestigeCost(S))}</b> cups brewed this run. Each new café costs twice as much as the last, until you Go Global.</p>
+          <p>Resets cups, buildings, building unlocks, managers, stockpiles and upgrades. Keeps Stars, bean unlocks and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
           <div class="stat num" data-pending>0<small>Stars on reset</small></div>
           <p data-need></p>
           <div class="row"><button class="act" data-act="cafe"></button><button class="ghost" data-act="cancel" hidden>Keep brewing</button></div>
@@ -161,6 +188,12 @@
   $('view').addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.mode) { buyMode = t.dataset.mode === 'max' ? 'max' : +t.dataset.mode; render(); return; }
+    if (t.dataset.unl) {
+      const b = E.BUILDINGS.find(x => x.id === t.dataset.unl);
+      if (E.unlock(S, b.id, freeBuys)) { toast(`${b.name} unlocked. Find it in Buildings.`); render(); }
+      return;
+    }
+    if (t.dataset.goto) { document.querySelector(`.tab[data-tab="${t.dataset.goto}"]`).click(); return; }
     if (t.dataset.run) { if (E.runBuilding(S, t.dataset.run)) refresh(); return; }
     if (t.dataset.buy) {
       if (E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys)) {
@@ -230,15 +263,30 @@
       el.querySelector('.flag').innerHTML = lim ? '<span class="badge">Bottleneck</span>' : '';
     });
 
-    // cup fill: shows progress toward the next 10x of cups this run, plus a click pulse
-    const lg = S.runCups > 0 ? Math.log10(S.runCups) : 0;
-    const frac = Math.min(1, (lg % 1) * 0.85 + pulse * 0.08);
+    // cup fill: percent of the way to Open a New Cafe (prestigeCost cups this run).
+    // 50% of the cups means half full. The click pulse can't fill it to the rim before you're ready.
+    const goalCups = E.prestigeCost(S), ready = S.runCups >= goalCups;
+    const pct = Math.min(1, S.runCups / goalCups);
+    const frac = ready ? 1 : Math.min(0.98, pct + pulse * 0.04);
     const y = 168 - frac * 112;
     $('fill').setAttribute('y', y); $('crema').setAttribute('y', y - 4);
+    brewBtn.classList.toggle('ready', ready);
+    const goal = $('goal');
+    goal.classList.toggle('ready', ready);
+    goal.textContent = ready ? `Ready to open a new café · +${fmt(E.pendingStars(S))} Stars →`
+      : `New café: ${Math.floor(pct * 100)}% · ${fmt(S.runCups)} / ${fmt(goalCups)} cups this run`;
+    if (ready && !wasReady) { burst(brewBtn); toast('Your cup is full: you can Open a New Café for Reputation Stars.'); }
+    wasReady = ready;
 
     const v = $('view');
+    if ((tab === 'build' || tab === 'expand') && unlockSig() !== sig) return render();
     if (tab === 'build') {
       const m = E.mods(S);
+      v.querySelectorAll('[data-next]').forEach(el => {
+        const b = E.BUILDINGS.find(x => x.id === el.dataset.next);
+        el.querySelector('[data-next-txt]').textContent = `${Math.min(S.owned[b.prev], E.UNLOCK_NEED)}/${E.UNLOCK_NEED} ${E.BUILDINGS.find(x => x.id === b.prev).name}`;
+        el.classList.toggle('ready', E.canUnlock(S, b.id, freeBuys));
+      });
       v.querySelectorAll('.bld').forEach(row => {
         const id = row.dataset.id, b = E.BUILDINGS.find(x => x.id === id);
         const n = buyCount(id), c = E.costOf(S, id, n), ct = E.cycleTime(S, id, m);
@@ -265,6 +313,15 @@
         mgr.textContent = managed ? 'Manager hired' : `Hire manager ${fmt(b.manager)}`;
         mgr.disabled = managed || (!freeBuys && b.manager > S.cups);
       });
+    } else if (tab === 'expand') {
+      v.querySelectorAll('[data-unl]').forEach(btn => {
+        const b = E.BUILDINGS.find(x => x.id === btn.dataset.unl), have = S.owned[b.prev];
+        const prevName = E.BUILDINGS.find(x => x.id === b.prev).name, row = btn.closest('.unl');
+        row.querySelector('[data-need-txt]').textContent = `Own ${E.UNLOCK_NEED} ${prevName}: ${Math.min(have, E.UNLOCK_NEED)}/${E.UNLOCK_NEED}`;
+        row.querySelector('[data-need-bar]').style.transform = `scaleX(${Math.min(1, have / E.UNLOCK_NEED)})`;
+        btn.textContent = have < E.UNLOCK_NEED ? `Needs ${E.UNLOCK_NEED - have} more ${prevName}` : `Unlock for ${fmt(b.unlock)} cups`;
+        btn.disabled = !E.canUnlock(S, b.id, freeBuys);
+      });
     } else if (tab === 'upg') {
       const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
       if (now !== sig) return render();
@@ -274,8 +331,8 @@
       const perStar = 2 + (S.legacy.starpower || 0);
       v.querySelector('[data-perstar]').textContent = perStar + '%';
       v.querySelector('[data-pending]').firstChild.textContent = '+' + fmt(p);
-      v.querySelector('[data-need]').textContent = S.runCups < E.PRESTIGE_MIN
-        ? `Brew ${fmt(E.PRESTIGE_MIN - S.runCups)} more cups this run to unlock.`
+      v.querySelector('[data-need]').textContent = S.runCups < E.prestigeCost(S)
+        ? `Brew ${fmt(E.prestigeCost(S) - S.runCups)} more cups this run to unlock.`
         : `Production after reset: x${(1 + perStar / 100 * (S.stars + p)).toFixed(2)} from Stars (now x${(1 + perStar / 100 * S.stars).toFixed(2)}).`;
       const btn = v.querySelector('[data-act="cafe"]');
       btn.disabled = p <= 0;
@@ -302,6 +359,7 @@
     }
     // dot on Upgrades tab when something is affordable
     $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u, freeBuys) && (freeBuys || u.cost <= S.cups));
+    $('expdot').hidden = !E.BUILDINGS.some(b => E.canUnlock(S, b.id, freeBuys));
   }
 
   // ---------- Game loop ----------

@@ -66,6 +66,15 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .cupbtn:active svg { transform: scale(.96) rotate(-2deg); }
 .cuplabel { text-align: center; font-size: .85rem; color: var(--muted); margin-top: -4px; }
 .cuplabel b { color: var(--ink); }
+/* Cup = progress toward Open a New Cafe. Full, glowing and steaming once you can prestige. */
+.goal { display: block; margin: 4px auto 0; background: none; border: 0; padding: 2px 8px; font-size: .82rem; color: var(--muted); }
+.goal.ready { color: var(--crema); font-weight: 600; }
+#steam { opacity: .45; }
+.cupbtn.ready #steam { animation: steam 1.6s ease-in-out infinite; }
+@keyframes steam { 0% { transform: translateY(6px); opacity: 0; } 40% { opacity: .9; } 100% { transform: translateY(-8px); opacity: 0; } }
+.cupbtn.ready svg { animation: glow 2s ease-in-out infinite; }
+@keyframes glow { 50% { filter: drop-shadow(0 0 12px var(--crema)); } }
+@media (prefers-reduced-motion: reduce) { .cupbtn.ready #steam, .cupbtn.ready svg { animation: none; } }
 .pop { position: absolute; pointer-events: none; font-family: var(--display); font-weight: 800; color: var(--crema); font-size: 1.15rem; animation: rise .9s ease-out forwards; }
 @keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-60px); } }
 @media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 0; } .cupbtn svg { transition: none; } }
@@ -118,6 +127,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .item .p { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: var(--mono); font-size: .88rem; }
 .item .p small { display: block; color: var(--muted); font-family: var(--body); font-size: .7rem; }
 .item.sel { border-color: var(--crema); background: var(--crema-soft); }
+
+/* Expansion: next locked tier per stage */
+.next { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; background: none; color: var(--muted); font-size: .8rem; text-align: left; }
+.next b { color: var(--ink); }
+.next.ready { border-color: var(--crema); color: var(--crema); }
+.unl .need { display: grid; gap: 6px; font-size: .8rem; color: var(--muted); }
+.unl .cyc i { background: var(--c); }
 
 /* Building rows: click the left side to run a cycle, buy and hire on the right */
 .bld { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 128px; gap: 6px 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
@@ -195,7 +211,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
         <button class="cupbtn" id="brew" aria-label="Hand brew a cup">
           <svg viewBox="0 0 220 190" aria-hidden="true">
             <defs><clipPath id="cupclip"><path d="M40 52 H170 L160 150 Q158 168 140 168 H70 Q52 168 50 150 Z"/></clipPath></defs>
-            <path d="M80 40 q-8 -14 0 -26 M105 40 q-8 -14 0 -26 M130 40 q-8 -14 0 -26" fill="none" stroke="var(--muted)" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+            <path id="steam" d="M80 40 q-8 -14 0 -26 M105 40 q-8 -14 0 -26 M130 40 q-8 -14 0 -26" fill="none" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
             <g clip-path="url(#cupclip)">
               <rect x="30" y="52" width="150" height="120" fill="var(--panel)"/>
               <rect id="fill" x="30" y="168" width="150" height="120" fill="var(--roast)"/>
@@ -207,6 +223,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
           </svg>
         </button>
         <div class="cuplabel">Click to hand brew · <b class="num" id="clickpow">1</b> cups per click</div>
+        <button class="goal" id="goal"></button>
       </div>
 
       <div class="chain">
@@ -223,6 +240,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
     <section class="shop" aria-label="Shop">
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" data-tab="build" aria-selected="true">Buildings</button>
+        <button class="tab" role="tab" data-tab="expand" aria-selected="false">Expansion<span class="dot" id="expdot" hidden></span></button>
         <button class="tab" role="tab" data-tab="upg" aria-selected="false">Upgrades<span class="dot" id="upgdot" hidden></span></button>
         <button class="tab" role="tab" data-tab="beans" aria-selected="false">Beans</button>
         <button class="tab" role="tab" data-tab="cafe" aria-selected="false">New Café</button>
@@ -272,10 +290,16 @@ const BUILDINGS = [
 // A batch is rate * cycle, so the average output per second matches the rate above.
 const CYCLE_BY_TIER = [1, 3, 6, 12, 24];   // seconds, tier 1..5 within each stage
 const MANAGER_MULT = 20;                    // manager price = building base cost * this
+// Only tier 1 of each stage is open at the start of a run. Higher tiers are unlocked in the
+// Expansion tab for cups, once you own UNLOCK_NEED of the tier below.
+const UNLOCK_MULT = 2;                      // unlock price = building base cost * this
+const UNLOCK_NEED = 25;
 for (const st of ['farm', 'roast', 'brew']) {
-  BUILDINGS.filter(b => b.stage === st).forEach((b, i) => {
+  BUILDINGS.filter(b => b.stage === st).forEach((b, i, list) => {
     b.cycle = CYCLE_BY_TIER[i];
     b.manager = b.cost * MANAGER_MULT;
+    b.tier = i + 1;
+    if (i > 0) { b.prev = list[i - 1].id; b.unlock = b.cost * UNLOCK_MULT; }
   });
 }
 
@@ -323,7 +347,8 @@ const LEGACY = [
   { id: 'autobuy',   name: 'Operations Manager',  cost: 4, max: 1, desc: 'Auto-buys a building for your bottleneck stage every 2 seconds.' },
 ];
 
-const PRESTIGE_MIN = 1e6;   // cups this run needed to Open a New Cafe
+const PRESTIGE_MIN = 1e6;   // cups this run needed for the first New Cafe of an ascension
+const PRESTIGE_GROWTH = 2;  // ...and each New Cafe after that needs this many times more
 const ASCEND_MIN = 1000;    // Stars needed to Go Global
 
 function newRun(state) {
@@ -337,6 +362,7 @@ function newRun(state) {
   state.progress = {};   // seconds into the current cycle, per building
   state.running = {};    // unmanaged buildings started by a click (run one cycle)
   state.fill = {};       // share of the last batch a roaster/brewer actually got (1 = full)
+  state.unlocked = {};   // higher-tier buildings unlocked this run
   if (!(state.legacy || {}).staff || !state.managers) state.managers = {};
   if ((state.legacy || {}).headstart) {
     state.owned.bush = 5; state.owned.pan = 5; state.owned.drip = 5;
@@ -355,6 +381,7 @@ function newGame() {
     tokens: 0,           // unspent Origin Tokens
     legacy: {},          // legacy perk levels
     prestiges: 0,
+    cafes: 0,            // New Cafes opened this ascension (raises the next one's cost)
     ascensions: 0,
     managers: {},        // building id -> true once a manager is hired
     lastSave: Date.now(),
@@ -364,6 +391,22 @@ function newGame() {
 }
 
 function bld(id) { return BUILDINGS.find(b => b.id === id); }
+
+// Tier 1 is always open. Owning any copies also counts, so saves from before unlocks still work.
+function isUnlocked(s, id) { return !bld(id).prev || !!s.unlocked[id] || s.owned[id] > 0; }
+
+// Next tier is ready to unlock once you own enough of the tier below.
+function canUnlock(s, id, free = false) {
+  const b = bld(id);
+  if (!b.prev || isUnlocked(s, id) || !isUnlocked(s, b.prev)) return false;
+  return s.owned[b.prev] >= UNLOCK_NEED && (free || s.cups >= b.unlock);
+}
+
+function unlock(s, id, free = false) {
+  if (!canUnlock(s, id, free)) return false;
+  if (!free) s.cups -= bld(id).unlock;
+  s.unlocked[id] = true; return true;
+}
 
 function costOf(s, id, n = 1) {
   const b = bld(id), k = s.owned[id];
@@ -482,7 +525,7 @@ function tick(s, dt) {
     if (s.autoTimer >= 2) {
       s.autoTimer = 0;
       const stage = r.bottleneck || 'farm';
-      const best = BUILDINGS.filter(b => b.stage === stage && costOf(s, b.id) <= s.cups)
+      const best = BUILDINGS.filter(b => b.stage === stage && isUnlocked(s, b.id) && costOf(s, b.id) <= s.cups)
         .sort((x, y) => y.rate / costOf(s, y.id) - x.rate / costOf(s, x.id))[0];
       if (best) buy(s, best.id, 1);
     }
@@ -494,7 +537,7 @@ function click(s) { const r = rates(s); addCups(s, r.clickPower); return r.click
 
 function buy(s, id, n = 1, free = false) {
   const c = costOf(s, id, n);
-  if (n < 1 || (!free && c > s.cups)) return false;
+  if (n < 1 || !isUnlocked(s, id) || (!free && c > s.cups)) return false;
   if (!free) s.cups -= c;
   s.owned[id] += n; return true;
 }
@@ -517,12 +560,14 @@ function buyUpgrade(s, id, free = false) {
 function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
 
 // ---- Prestige: Open a New Cafe ----
-function pendingStars(s) { return s.runCups < PRESTIGE_MIN ? 0 : Math.floor(10 * Math.cbrt(s.runCups / 1e6)); }
+// Cups this run needed to Open a New Cafe: 1M, 2M, 4M... resets when you Go Global.
+function prestigeCost(s) { return PRESTIGE_MIN * Math.pow(PRESTIGE_GROWTH, s.cafes || 0); }
+function pendingStars(s) { return s.runCups < prestigeCost(s) ? 0 : Math.floor(10 * Math.cbrt(s.runCups / 1e6)); }
 
 function prestige(s) {
   const gain = pendingStars(s);
   if (gain <= 0) return 0;
-  s.stars += gain; s.starsEarned += gain; s.prestiges++;
+  s.stars += gain; s.starsEarned += gain; s.prestiges++; s.cafes = (s.cafes || 0) + 1;
   for (const b of BEANS) if (s.starsEarned >= b.stars) s.beansUnlocked[b.id] = true;
   newRun(s);
   return gain;
@@ -535,7 +580,7 @@ function ascend(s) {
   const gain = pendingTokens(s);
   if (gain <= 0) return 0;
   s.tokens += gain; s.ascensions++;
-  s.stars = 0; s.starsEarned = 0;
+  s.stars = 0; s.starsEarned = 0; s.cafes = 0;
   if (!s.legacy.vault) { s.beansUnlocked = { arabica: true }; s.bean = 'arabica'; }
   newRun(s);
   return gain;
@@ -574,8 +619,8 @@ function fmt(n) {
 }
 
 const Engine = {
-  GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN,
-  newGame, newRun, costOf, maxAffordable, mods, cycleTime, batch, rates, tick, click, buy, runBuilding, buyManager,
+  GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN, UNLOCK_NEED,
+  newGame, newRun, isUnlocked, canUnlock, unlock, prestigeCost, costOf, maxAffordable, mods, cycleTime, batch, rates, tick, click, buy, runBuilding, buyManager,
   upgradeAvailable, buyUpgrade,
   setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt,
 };
@@ -641,6 +686,8 @@ if (typeof module !== 'undefined') module.exports = Engine;
     pulse = 1;
   });
   let pulse = 0;
+  // The cup label jumps to the New Cafe tab (most useful once you can prestige).
+  $('goal').addEventListener('click', () => document.querySelector('.tab[data-tab="cafe"]').click());
 
   // ---------- Tabs ----------
   let tab = 'build', buyMode = 1, confirmCafe = false, confirmGlobal = false, sig = '';
@@ -648,6 +695,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
   // Not saved, so it is off after a reload.
   let freeBuys = false;
   let bars = [];   // building rows' cycle bars, filled in by render()
+  let wasReady = S.runCups >= E.prestigeCost(S);   // celebrate only when this flips during play
   const freeBtn = () => `<button class="ghost" data-act="free" aria-pressed="${freeBuys}">Free buying: ${freeBuys ? 'ON' : 'off'}</button>`;
   document.querySelector('.tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab'); if (!b) return;
@@ -661,6 +709,15 @@ if (typeof module !== 'undefined') module.exports = Engine;
     { k: 'roast', title: 'Roasters', unit: 'roasted beans/s', c: 'var(--roast)' },
     { k: 'brew', title: 'Brewers', unit: 'beans brewed/s', c: 'var(--crema)' },
   ];
+
+  // Which tiers are open; render() rebuilds the Buildings/Expansion tabs when this changes.
+  const unlockSig = () => E.BUILDINGS.filter(b => E.isUnlocked(S, b.id)).map(b => b.id).join();
+  // Dashed row under a stage's buildings pointing at its next locked tier.
+  function nextTier(stage) {
+    const b = E.BUILDINGS.find(x => x.stage === stage && !E.isUnlocked(S, x.id));
+    return b ? `<button class="next" data-next="${b.id}" data-goto="expand">
+      <span>Next: <b>${b.name}</b> · unlock in Expansion</span><small data-next-txt></small></button>` : '';
+  }
 
   function buyCount(id) {
     if (buyMode === 'max') return Math.max(1, E.maxAffordable(S, id));
@@ -676,7 +733,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
           ${[1, 10, 'max'].map(n => `<button data-mode="${n}" aria-pressed="${buyMode === n}">${n === 'max' ? 'Max' : 'x' + n}</button>`).join('')}
         </div></div>` +
         STAGES.map(st => `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4><div class="list">` +
-          E.BUILDINGS.filter(b => b.stage === st.k).map(b => `
+          E.BUILDINGS.filter(b => b.stage === st.k && E.isUnlocked(S, b.id)).map(b => `
             <div class="bld" data-id="${b.id}">
               <button class="run" data-run="${b.id}" title="${b.perk || ''}">
                 <span class="t">${b.name}<span class="own" data-own></span></span>
@@ -685,8 +742,22 @@ if (typeof module !== 'undefined') module.exports = Engine;
               </button>
               <button class="buy" data-buy="${b.id}"><span data-cost></span><small data-cnt></small></button>
               <button class="mgr" data-mgr="${b.id}"></button>
-            </div>`).join('') + `</div></div>`).join('');
+            </div>`).join('') + nextTier(st.k) + `</div></div>`).join('');
+      sig = unlockSig();
       bars = [...v.querySelectorAll('.bld')].map(el => ({ id: el.dataset.id, i: el.querySelector('.cyc i') }));
+    } else if (tab === 'expand') {
+      v.innerHTML = `<div class="toolbar"><p>Unlock bigger buildings. Each needs ${E.UNLOCK_NEED} of the tier below. Unlocks reset when you open a new café.</p>${freeBtn()}</div>` +
+        STAGES.map(st => {
+          const b = E.BUILDINGS.find(x => x.stage === st.k && !E.isUnlocked(S, x.id));
+          return `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4>` + (b ? `
+            <div class="panel unl" data-unl-row="${b.id}">
+              <div class="row" style="justify-content:space-between"><h3>${b.name}</h3><span class="num">tier ${b.tier}</span></div>
+              <p>${fmt(b.rate)} ${st.unit} each, every ${b.cycle}s.${b.perk ? ' ' + b.perk : ''}</p>
+              <div class="need"><span data-need-txt></span><span class="cyc"><i data-need-bar></i></span></div>
+              <button class="act" data-unl="${b.id}"></button>
+            </div>` : `<p class="empty">Every ${st.title.toLowerCase().slice(0, -1)} tier is unlocked.</p>`) + `</div>`;
+        }).join('');
+      sig = unlockSig();
     } else if (tab === 'upg') {
       const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost);
       sig = list.map(u => u.id).join();
@@ -710,7 +781,8 @@ if (typeof module !== 'undefined') module.exports = Engine;
       v.innerHTML = `<div class="toolbar"><p>Prestige: sell this café and open a new one.</p></div>
         <div class="panel">
           <h3>Open a New Café</h3>
-          <p>Resets cups, buildings, stockpiles and upgrades. Keeps Stars, bean unlocks and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
+          <p>Costs <b class="num">${fmt(E.prestigeCost(S))}</b> cups brewed this run. Each new café costs twice as much as the last, until you Go Global.</p>
+          <p>Resets cups, buildings, building unlocks, managers, stockpiles and upgrades. Keeps Stars, bean unlocks and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
           <div class="stat num" data-pending>0<small>Stars on reset</small></div>
           <p data-need></p>
           <div class="row"><button class="act" data-act="cafe"></button><button class="ghost" data-act="cancel" hidden>Keep brewing</button></div>
@@ -746,6 +818,12 @@ if (typeof module !== 'undefined') module.exports = Engine;
   $('view').addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.mode) { buyMode = t.dataset.mode === 'max' ? 'max' : +t.dataset.mode; render(); return; }
+    if (t.dataset.unl) {
+      const b = E.BUILDINGS.find(x => x.id === t.dataset.unl);
+      if (E.unlock(S, b.id, freeBuys)) { toast(`${b.name} unlocked. Find it in Buildings.`); render(); }
+      return;
+    }
+    if (t.dataset.goto) { document.querySelector(`.tab[data-tab="${t.dataset.goto}"]`).click(); return; }
     if (t.dataset.run) { if (E.runBuilding(S, t.dataset.run)) refresh(); return; }
     if (t.dataset.buy) {
       if (E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys)) {
@@ -815,15 +893,30 @@ if (typeof module !== 'undefined') module.exports = Engine;
       el.querySelector('.flag').innerHTML = lim ? '<span class="badge">Bottleneck</span>' : '';
     });
 
-    // cup fill: shows progress toward the next 10x of cups this run, plus a click pulse
-    const lg = S.runCups > 0 ? Math.log10(S.runCups) : 0;
-    const frac = Math.min(1, (lg % 1) * 0.85 + pulse * 0.08);
+    // cup fill: percent of the way to Open a New Cafe (prestigeCost cups this run).
+    // 50% of the cups means half full. The click pulse can't fill it to the rim before you're ready.
+    const goalCups = E.prestigeCost(S), ready = S.runCups >= goalCups;
+    const pct = Math.min(1, S.runCups / goalCups);
+    const frac = ready ? 1 : Math.min(0.98, pct + pulse * 0.04);
     const y = 168 - frac * 112;
     $('fill').setAttribute('y', y); $('crema').setAttribute('y', y - 4);
+    brewBtn.classList.toggle('ready', ready);
+    const goal = $('goal');
+    goal.classList.toggle('ready', ready);
+    goal.textContent = ready ? `Ready to open a new café · +${fmt(E.pendingStars(S))} Stars →`
+      : `New café: ${Math.floor(pct * 100)}% · ${fmt(S.runCups)} / ${fmt(goalCups)} cups this run`;
+    if (ready && !wasReady) { burst(brewBtn); toast('Your cup is full: you can Open a New Café for Reputation Stars.'); }
+    wasReady = ready;
 
     const v = $('view');
+    if ((tab === 'build' || tab === 'expand') && unlockSig() !== sig) return render();
     if (tab === 'build') {
       const m = E.mods(S);
+      v.querySelectorAll('[data-next]').forEach(el => {
+        const b = E.BUILDINGS.find(x => x.id === el.dataset.next);
+        el.querySelector('[data-next-txt]').textContent = `${Math.min(S.owned[b.prev], E.UNLOCK_NEED)}/${E.UNLOCK_NEED} ${E.BUILDINGS.find(x => x.id === b.prev).name}`;
+        el.classList.toggle('ready', E.canUnlock(S, b.id, freeBuys));
+      });
       v.querySelectorAll('.bld').forEach(row => {
         const id = row.dataset.id, b = E.BUILDINGS.find(x => x.id === id);
         const n = buyCount(id), c = E.costOf(S, id, n), ct = E.cycleTime(S, id, m);
@@ -850,6 +943,15 @@ if (typeof module !== 'undefined') module.exports = Engine;
         mgr.textContent = managed ? 'Manager hired' : `Hire manager ${fmt(b.manager)}`;
         mgr.disabled = managed || (!freeBuys && b.manager > S.cups);
       });
+    } else if (tab === 'expand') {
+      v.querySelectorAll('[data-unl]').forEach(btn => {
+        const b = E.BUILDINGS.find(x => x.id === btn.dataset.unl), have = S.owned[b.prev];
+        const prevName = E.BUILDINGS.find(x => x.id === b.prev).name, row = btn.closest('.unl');
+        row.querySelector('[data-need-txt]').textContent = `Own ${E.UNLOCK_NEED} ${prevName}: ${Math.min(have, E.UNLOCK_NEED)}/${E.UNLOCK_NEED}`;
+        row.querySelector('[data-need-bar]').style.transform = `scaleX(${Math.min(1, have / E.UNLOCK_NEED)})`;
+        btn.textContent = have < E.UNLOCK_NEED ? `Needs ${E.UNLOCK_NEED - have} more ${prevName}` : `Unlock for ${fmt(b.unlock)} cups`;
+        btn.disabled = !E.canUnlock(S, b.id, freeBuys);
+      });
     } else if (tab === 'upg') {
       const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
       if (now !== sig) return render();
@@ -859,8 +961,8 @@ if (typeof module !== 'undefined') module.exports = Engine;
       const perStar = 2 + (S.legacy.starpower || 0);
       v.querySelector('[data-perstar]').textContent = perStar + '%';
       v.querySelector('[data-pending]').firstChild.textContent = '+' + fmt(p);
-      v.querySelector('[data-need]').textContent = S.runCups < E.PRESTIGE_MIN
-        ? `Brew ${fmt(E.PRESTIGE_MIN - S.runCups)} more cups this run to unlock.`
+      v.querySelector('[data-need]').textContent = S.runCups < E.prestigeCost(S)
+        ? `Brew ${fmt(E.prestigeCost(S) - S.runCups)} more cups this run to unlock.`
         : `Production after reset: x${(1 + perStar / 100 * (S.stars + p)).toFixed(2)} from Stars (now x${(1 + perStar / 100 * S.stars).toFixed(2)}).`;
       const btn = v.querySelector('[data-act="cafe"]');
       btn.disabled = p <= 0;
@@ -887,6 +989,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
     }
     // dot on Upgrades tab when something is affordable
     $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u, freeBuys) && (freeBuys || u.cost <= S.cups));
+    $('expdot').hidden = !E.BUILDINGS.some(b => E.canUnlock(S, b.id, freeBuys));
   }
 
   // ---------- Game loop ----------
