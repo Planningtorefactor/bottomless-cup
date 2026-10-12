@@ -1,0 +1,755 @@
+<title>Bottomless Cup</title>
+<meta name="description" content="An idle coffee empire: grow, roast, brew, prestige, ascend.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a brew counter on the left (cup + chain), a shop with tabs on the right; stacks on phones. */
+:root {
+  --bg: #eceee8;          /* pale sage-grey, like a cupping-lab bench */
+  --panel: #f8f9f5;
+  --ink: #1d1a16;
+  --muted: #6b675e;
+  --line: #d3d5cc;
+  --green: #5f7d3a;       /* green beans */
+  --roast: #7b4423;       /* roasted beans */
+  --crema: #b9772a;       /* the cup */
+  --crema-soft: #f1dfc4;
+  --warn: #b3412b;
+  --ok: #3f7a4f;
+  --display: 'Bricolage Grotesque', 'Arial Narrow', system-ui, sans-serif;
+  --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #16120f; --panel: #211b16; --ink: #f1e9df; --muted: #a59b8e; --line: #3a312a;
+  --green: #9cba6d; --roast: #d08a5c; --crema: #e3a659; --crema-soft: #3d2c1a; --warn: #e2765f; --ok: #79b98a;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #16120f; --panel: #211b16; --ink: #f1e9df; --muted: #a59b8e; --line: #3a312a;
+  --green: #9cba6d; --roast: #d08a5c; --crema: #e3a659; --crema-soft: #3d2c1a; --warn: #e2765f; --ok: #79b98a;
+  color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema); outline-offset: 2px; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.brand { font-family: var(--display); font-weight: 800; font-size: 1.05rem; letter-spacing: .02em; }
+.brand small { display: block; font-family: var(--body); font-weight: 500; font-size: .78rem; color: var(--muted); letter-spacing: 0; }
+.score { text-align: right; min-width: 0; }
+.score .big { font-family: var(--display); font-weight: 800; font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1; font-variant-numeric: tabular-nums; }
+.score .unit { font-family: var(--display); font-weight: 500; font-size: 1.1rem; color: var(--muted); margin-left: 6px; }
+.score .rate { color: var(--muted); font-size: .9rem; }
+.meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 600; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; margin-top: 24px; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Brew counter */
+.counter { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.cupbtn { position: relative; display: grid; place-items: center; background: none; border: 0; padding: 8px; margin: 0 auto; width: min(260px, 70vw); -webkit-tap-highlight-color: transparent; user-select: none; }
+.cupbtn svg { width: 100%; height: auto; display: block; transition: transform .08s ease; }
+.cupbtn:active svg { transform: scale(.96) rotate(-2deg); }
+.cuplabel { text-align: center; font-size: .85rem; color: var(--muted); margin-top: -4px; }
+.cuplabel b { color: var(--ink); }
+.pop { position: absolute; pointer-events: none; font-family: var(--display); font-weight: 800; color: var(--crema); font-size: 1.15rem; animation: rise .9s ease-out forwards; }
+@keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-60px); } }
+@media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 0; } .cupbtn svg { transition: none; } }
+
+.chain { display: grid; gap: 10px; }
+.chain h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-family: var(--body); font-weight: 600; }
+.stage { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.stage .name { font-weight: 600; font-size: .9rem; }
+.stage .name span { display: block; font-weight: 400; color: var(--muted); font-size: .74rem; }
+.bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 4px; transition: width .25s; }
+.stage[data-k="farm"] .bar i { background: var(--green); }
+.stage[data-k="roast"] .bar i { background: var(--roast); }
+.stage[data-k="brew"] .bar i { background: var(--crema); }
+.stage .cap { font-size: .8rem; text-align: right; min-width: 92px; }
+.stage .stock { grid-column: 2 / 4; font-size: .74rem; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.badge { font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--warn); border: 1px solid currentColor; padding: 1px 6px; border-radius: 99px; }
+.stage.limit { border-color: var(--warn); }
+.yieldline { font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; padding-inline: 4px; }
+
+/* Shop */
+.shop { min-width: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--crema); }
+.tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--crema); margin-left: 5px; vertical-align: middle; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-block: 12px; flex-wrap: wrap; }
+.toolbar p { margin: 0; color: var(--muted); font-size: .84rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: none; border: 0; padding: 4px 10px; font-size: .82rem; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.group { margin-bottom: 18px; }
+.group h4 { margin: 0 0 6px; font-size: .74rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.group h4::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
+.list { display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; width: 100%; text-align: left; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.item:hover:not([disabled]) { border-color: var(--crema); }
+.item[disabled] { cursor: default; opacity: .55; }
+.item .t { font-weight: 600; min-width: 0; }
+.item .t .own { font-family: var(--mono); color: var(--muted); font-weight: 500; margin-left: 6px; font-size: .85rem; }
+.item .d { grid-column: 1; font-size: .78rem; color: var(--muted); }
+.item .p { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: var(--mono); font-size: .88rem; }
+.item .p small { display: block; color: var(--muted); font-family: var(--body); font-size: .7rem; }
+.item.sel { border-color: var(--crema); background: var(--crema-soft); }
+.empty { color: var(--muted); font-size: .88rem; padding: 12px 0; }
+
+.panel { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: grid; gap: 10px; margin-bottom: 14px; }
+.panel h3 { font-size: 1.35rem; }
+.panel p { margin: 0; color: var(--muted); font-size: .88rem; }
+.panel .stat { font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1; }
+.panel .stat small { font-family: var(--body); font-weight: 500; font-size: .85rem; color: var(--muted); margin-left: 6px; }
+.act { justify-self: start; padding: 9px 16px; border-radius: 8px; border: 0; background: var(--ink); color: var(--bg); font-weight: 600; }
+.act[disabled] { opacity: .35; cursor: default; }
+.act.danger { background: var(--warn); color: #fff; }
+.ghost { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: none; font-weight: 600; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .75rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: .88rem; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgb(0 0 0 / .2); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">BOTTOMLESS CUP<small>Prototype build · balance values from the design doc</small></div>
+      <div class="meta" style="margin-top:8px">
+        <span>Stars <b class="num" id="m-stars">0</b></span>
+        <span>Tokens <b class="num" id="m-tokens">0</b></span>
+        <span>Bean <b id="m-bean">Arabica</b></span>
+      </div>
+    </div>
+    <div class="score">
+      <div><span class="big" id="cups">0</span><span class="unit">cups</span></div>
+      <div class="rate"><span class="num" id="cps">0</span> per second · <span class="num" id="runcups">0</span> brewed this run</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="counter" aria-label="Brew counter">
+      <div>
+        <button class="cupbtn" id="brew" aria-label="Hand brew a cup">
+          <svg viewBox="0 0 220 190" aria-hidden="true">
+            <defs><clipPath id="cupclip"><path d="M40 52 H170 L160 150 Q158 168 140 168 H70 Q52 168 50 150 Z"/></clipPath></defs>
+            <path d="M80 40 q-8 -14 0 -26 M105 40 q-8 -14 0 -26 M130 40 q-8 -14 0 -26" fill="none" stroke="var(--muted)" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+            <g clip-path="url(#cupclip)">
+              <rect x="30" y="52" width="150" height="120" fill="var(--panel)"/>
+              <rect id="fill" x="30" y="168" width="150" height="120" fill="var(--roast)"/>
+              <rect id="crema" x="30" y="164" width="150" height="6" fill="var(--crema)"/>
+            </g>
+            <path d="M40 52 H170 L160 150 Q158 168 140 168 H70 Q52 168 50 150 Z" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"/>
+            <path d="M166 76 q34 -2 32 26 q-2 26 -40 30" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+            <ellipse cx="105" cy="178" rx="78" ry="8" fill="none" stroke="var(--ink)" stroke-width="4"/>
+          </svg>
+        </button>
+        <div class="cuplabel">Click to hand brew · <b class="num" id="clickpow">1</b> cups per click</div>
+      </div>
+
+      <div class="chain">
+        <h3>Supply chain</h3>
+        <div class="stage" data-k="farm"><div class="name">Farms<span>green beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="stage" data-k="roast"><div class="name">Roasters<span>roasted beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="stage" data-k="brew"><div class="name">Brewers<span>cups</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>capacity in roasted beans/s</span><span class="flag"></span></div></div>
+        <div class="yieldline"><span>Brew yield</span><span class="num" id="yield">1.00 cups per roasted bean</span></div>
+      </div>
+    </section>
+
+    <section class="shop" aria-label="Shop">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="build" aria-selected="true">Buildings</button>
+        <button class="tab" role="tab" data-tab="upg" aria-selected="false">Upgrades<span class="dot" id="upgdot" hidden></span></button>
+        <button class="tab" role="tab" data-tab="beans" aria-selected="false">Beans</button>
+        <button class="tab" role="tab" data-tab="cafe" aria-selected="false">New Café</button>
+        <button class="tab" role="tab" data-tab="global" aria-selected="false">Go Global</button>
+        <button class="tab" role="tab" data-tab="save" aria-selected="false">Save</button>
+      </div>
+      <div id="view"></div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// Bottomless Cup - game engine (pure logic, no DOM).
+// Runs in the browser and in Node (for balance simulations).
+
+const GROWTH = 1.15; // each copy of a building costs 15% more than the last
+
+const BUILDINGS = [
+  // Farms: produce green beans per second
+  { id: 'bush',       stage: 'farm',   name: 'Backyard Bush',        cost: 10,      rate: 0.5 },
+  { id: 'farm',       stage: 'farm',   name: 'Family Farm',          cost: 120,     rate: 4 },
+  { id: 'plantation', stage: 'farm',   name: 'Plantation',           cost: 1500,    rate: 30 },
+  { id: 'estate',     stage: 'farm',   name: 'Highland Estate',      cost: 20000,   rate: 220 },
+  { id: 'coop',       stage: 'farm',   name: 'Cloud Forest Co-op',   cost: 300000,  rate: 1600 },
+  // Roasters: roast green beans per second (capacity)
+  { id: 'pan',        stage: 'roast',  name: 'Pan Roaster',          cost: 15,      rate: 0.6 },
+  { id: 'drum',       stage: 'roast',  name: 'Drum Roaster',         cost: 180,     rate: 5 },
+  { id: 'fluid',      stage: 'roast',  name: 'Fluid-Bed Roaster',    cost: 2200,    rate: 36 },
+  { id: 'roastery',   stage: 'roast',  name: 'Industrial Roastery',  cost: 30000,   rate: 260 },
+  { id: 'lab',        stage: 'roast',  name: 'Smart Roast Lab',      cost: 450000,  rate: 1900 },
+  // Brewers: brew roasted beans per second (capacity), each with its own yield and perk
+  { id: 'drip',       stage: 'brew',   name: 'Drip Machine',         cost: 20,      rate: 0.6,  yield: 1.0,
+    perk: 'Reliable and cheap.' },
+  { id: 'press',      stage: 'brew',   name: 'French Press',         cost: 240,     rate: 5,    yield: 1.1,
+    perk: '1.1 cups per roasted bean.' },
+  { id: 'pourover',   stage: 'brew',   name: 'Pour-Over Bar',        cost: 3000,    rate: 36,   yield: 1.25,
+    perk: '1.25 cups per roasted bean.' },
+  { id: 'espresso',   stage: 'brew',   name: 'Espresso Machine',     cost: 40000,   rate: 260,  yield: 1.0,
+    perk: '+2% click power each.' },
+  { id: 'coldbrew',   stage: 'brew',   name: 'Cold Brew Tower',      cost: 600000,  rate: 1900, yield: 1.4,
+    perk: '1.4 yield, +1% offline efficiency each (max +50%).' },
+];
+
+const BEANS = [
+  { id: 'arabica',     name: 'Arabica',     stars: 0,   desc: '+10% brew yield. The balanced starter.',
+    mods: { yield: 1.10 } },
+  { id: 'robusta',     name: 'Robusta',     stars: 5,   desc: 'x2 farm output, -10% brew yield.',
+    mods: { farm: 2, yield: 0.9 } },
+  { id: 'liberica',    name: 'Liberica',    stars: 25,  desc: 'x2 roaster capacity, -10% farm output.',
+    mods: { roast: 2, farm: 0.9 } },
+  { id: 'yirgacheffe', name: 'Yirgacheffe', stars: 75,  desc: '+40% brew yield, -25% click power.',
+    mods: { yield: 1.4, click: 0.75 } },
+  { id: 'geisha',      name: 'Geisha',      stars: 200, desc: 'x3 click power, +25% everything.',
+    mods: { click: 3, all: 1.25 } },
+];
+
+// One-time upgrades. Global ones are listed here; per-building ones are generated below.
+const UPGRADES = [
+  { id: 'grinder',   name: 'Burr Grinder',       cost: 100,     desc: 'Click power x2.',            mods: { click: 2 } },
+  { id: 'apprentice',name: 'Barista Apprentice', cost: 1000,    desc: 'Clicks also add 1% of your cups/sec.', mods: { clickPct: 0.01 } },
+  { id: 'fairtrade', name: 'Fair Trade Contracts', cost: 5000,  desc: 'Farms +50%.',                mods: { farm: 1.5 } },
+  { id: 'thermal',   name: 'Thermal Sensors',    cost: 8000,    desc: 'Roasters +50%.',             mods: { roast: 1.5 } },
+  { id: 'filter',    name: 'Water Filtration',   cost: 12000,   desc: 'Brewers +50%, yield +10%.',  mods: { brew: 1.5, yield: 1.1 } },
+  { id: 'latteart',  name: 'Latte Art',          cost: 50000,   desc: 'Click power x3.',            mods: { click: 3 } },
+  { id: 'loyalty',   name: 'Loyalty Cards',      cost: 250000,  desc: 'All production x1.5.',       mods: { all: 1.5 } },
+  { id: 'drivethru', name: 'Drive-Thru Window',  cost: 5e6,     desc: 'All production x2.',         mods: { all: 2 } },
+  { id: 'subscript', name: 'Bean Subscriptions', cost: 1e8,     desc: 'All production x2.',         mods: { all: 2 } },
+];
+for (const b of BUILDINGS) {
+  UPGRADES.push({ id: b.id + '_10', name: b.name + ' Tune-up', cost: b.cost * 40, need: { id: b.id, n: 10 },
+    desc: b.name + ' output x2 (needs 10).', mods: { bld: { [b.id]: 2 } } });
+  UPGRADES.push({ id: b.id + '_25', name: b.name + ' Mastery', cost: b.cost * 400, need: { id: b.id, n: 25 },
+    desc: b.name + ' output x2 (needs 25).', mods: { bld: { [b.id]: 2 } } });
+}
+
+// Ascension perks bought with Origin Tokens. max = how many levels.
+const LEGACY = [
+  { id: 'headstart', name: 'Head Start',          cost: 1, max: 1, desc: 'Every run starts with 5 Bushes, 5 Pan Roasters, 5 Drip Machines.' },
+  { id: 'academy',   name: 'Barista Academy',     cost: 1, max: 5, desc: 'Click power x2 per level.' },
+  { id: 'vault',     name: 'Seed Vault',          cost: 2, max: 1, desc: 'Bean varieties stay unlocked when you Go Global.' },
+  { id: 'nightshift',name: 'Night Shift',         cost: 2, max: 1, desc: 'Offline production 50% -> 100%.' },
+  { id: 'starpower', name: 'Star Power',          cost: 2, max: 5, desc: 'Each Reputation Star gives +1% more per level.' },
+  { id: 'supply',    name: 'Global Supply Chain', cost: 3, max: 3, desc: 'All production x2 per level.' },
+  { id: 'autobuy',   name: 'Operations Manager',  cost: 4, max: 1, desc: 'Auto-buys a building for your bottleneck stage every 2 seconds.' },
+];
+
+const PRESTIGE_MIN = 1e6;   // cups this run needed to Open a New Cafe
+const ASCEND_MIN = 1000;    // Stars needed to Go Global
+
+function newRun(state) {
+  state.cups = 0;
+  state.runCups = 0;
+  state.green = 0;
+  state.roasted = 0;
+  state.owned = {};
+  for (const b of BUILDINGS) state.owned[b.id] = 0;
+  state.upgrades = {};
+  if ((state.legacy || {}).headstart) {
+    state.owned.bush = 5; state.owned.pan = 5; state.owned.drip = 5;
+  }
+  return state;
+}
+
+function newGame() {
+  const s = {
+    version: 1,
+    lifetimeCups: 0,
+    stars: 0,            // Reputation Stars held (reset on ascension)
+    starsEarned: 0,      // total earned this ascension, unlocks beans
+    bean: 'arabica',
+    beansUnlocked: { arabica: true },
+    tokens: 0,           // unspent Origin Tokens
+    legacy: {},          // legacy perk levels
+    prestiges: 0,
+    ascensions: 0,
+    lastSave: Date.now(),
+    autoTimer: 0,
+  };
+  return newRun(s);
+}
+
+function bld(id) { return BUILDINGS.find(b => b.id === id); }
+
+function costOf(s, id, n = 1) {
+  const b = bld(id), k = s.owned[id];
+  // sum of a geometric series: base * r^k * (r^n - 1) / (r - 1)
+  return b.cost * Math.pow(GROWTH, k) * (Math.pow(GROWTH, n) - 1) / (GROWTH - 1);
+}
+
+function maxAffordable(s, id) {
+  const b = bld(id), k = s.owned[id];
+  const n = Math.floor(Math.log(s.cups * (GROWTH - 1) / (b.cost * Math.pow(GROWTH, k)) + 1) / Math.log(GROWTH));
+  return Math.max(0, n);
+}
+
+// Collect every multiplier from upgrades, bean, prestige and legacy.
+function mods(s) {
+  const m = { farm: 1, roast: 1, brew: 1, yield: 1, click: 1, all: 1, clickPct: 0, bld: {} };
+  const apply = src => {
+    for (const k in src) {
+      if (k === 'bld') for (const id in src.bld) m.bld[id] = (m.bld[id] || 1) * src.bld[id];
+      else if (k === 'clickPct') m.clickPct += src[k];
+      else m[k] *= src[k];
+    }
+  };
+  for (const u of UPGRADES) if (s.upgrades[u.id]) apply(u.mods);
+  apply(BEANS.find(b => b.id === s.bean).mods);
+  const L = s.legacy;
+  const perStar = 0.02 + 0.01 * (L.starpower || 0);
+  m.all *= 1 + perStar * s.stars;
+  m.all *= Math.pow(2, L.supply || 0);
+  m.click *= Math.pow(2, L.academy || 0);
+  m.click *= 1 + 0.02 * s.owned.espresso;
+  return m;
+}
+
+// Capacity per stage, already multiplied. Brewer yield is a capacity-weighted average.
+function rates(s) {
+  const m = mods(s);
+  const r = { farm: 0, roast: 0, brew: 0, yieldWeighted: 0 };
+  for (const b of BUILDINGS) {
+    const out = s.owned[b.id] * b.rate * (m.bld[b.id] || 1) * m[b.stage] * m.all;
+    r[b.stage] += out;
+    if (b.stage === 'brew') r.yieldWeighted += out * b.yield;
+  }
+  r.yield = (r.brew > 0 ? r.yieldWeighted / r.brew : 1) * m.yield;
+  r.cupsPerSec = Math.min(r.farm, r.roast, r.brew) * r.yield; // steady state
+  r.bottleneck = r.cupsPerSec === 0 && r.farm + r.roast + r.brew === 0 ? null
+    : (r.farm <= r.roast && r.farm <= r.brew ? 'farm' : r.roast <= r.brew ? 'roast' : 'brew');
+  r.clickPower = m.click + m.clickPct * r.cupsPerSec;
+  return r;
+}
+
+function addCups(s, n) { s.cups += n; s.runCups += n; s.lifetimeCups += n; }
+
+// Advance the simulation by dt seconds.
+function tick(s, dt) {
+  const r = rates(s);
+  s.green += r.farm * dt;
+  const roasted = Math.min(s.green, r.roast * dt);
+  s.green -= roasted; s.roasted += roasted;
+  const brewed = Math.min(s.roasted, r.brew * dt);
+  s.roasted -= brewed;
+  addCups(s, brewed * r.yield);
+  // Operations Manager legacy perk
+  if (s.legacy.autobuy) {
+    s.autoTimer += dt;
+    if (s.autoTimer >= 2) {
+      s.autoTimer = 0;
+      const stage = r.bottleneck || 'farm';
+      const best = BUILDINGS.filter(b => b.stage === stage && costOf(s, b.id) <= s.cups)
+        .sort((x, y) => y.rate / costOf(s, y.id) - x.rate / costOf(s, x.id))[0];
+      if (best) buy(s, best.id, 1);
+    }
+  }
+  return r;
+}
+
+function click(s) { const r = rates(s); addCups(s, r.clickPower); return r.clickPower; }
+
+function buy(s, id, n = 1) {
+  const c = costOf(s, id, n);
+  if (n < 1 || c > s.cups) return false;
+  s.cups -= c; s.owned[id] += n; return true;
+}
+
+function upgradeAvailable(s, u) {
+  if (s.upgrades[u.id]) return false;
+  if (u.need && s.owned[u.need.id] < u.need.n) return false;
+  return s.runCups >= u.cost * 0.5 || s.cups >= u.cost; // reveal once you are close
+}
+
+function buyUpgrade(s, id) {
+  const u = UPGRADES.find(x => x.id === id);
+  if (!u || s.upgrades[id] || s.cups < u.cost) return false;
+  if (u.need && s.owned[u.need.id] < u.need.n) return false;
+  s.cups -= u.cost; s.upgrades[id] = true; return true;
+}
+
+function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
+
+// ---- Prestige: Open a New Cafe ----
+function pendingStars(s) { return s.runCups < PRESTIGE_MIN ? 0 : Math.floor(10 * Math.cbrt(s.runCups / 1e6)); }
+
+function prestige(s) {
+  const gain = pendingStars(s);
+  if (gain <= 0) return 0;
+  s.stars += gain; s.starsEarned += gain; s.prestiges++;
+  for (const b of BEANS) if (s.starsEarned >= b.stars) s.beansUnlocked[b.id] = true;
+  newRun(s);
+  return gain;
+}
+
+// ---- Ascension: Go Global ----
+function pendingTokens(s) { return s.stars < ASCEND_MIN ? 0 : Math.floor(5 * Math.sqrt(s.stars / ASCEND_MIN)); }
+
+function ascend(s) {
+  const gain = pendingTokens(s);
+  if (gain <= 0) return 0;
+  s.tokens += gain; s.ascensions++;
+  s.stars = 0; s.starsEarned = 0;
+  if (!s.legacy.vault) { s.beansUnlocked = { arabica: true }; s.bean = 'arabica'; }
+  newRun(s);
+  return gain;
+}
+
+function buyLegacy(s, id) {
+  const p = LEGACY.find(x => x.id === id), lvl = s.legacy[id] || 0;
+  if (!p || lvl >= p.max || s.tokens < p.cost) return false;
+  s.tokens -= p.cost; s.legacy[id] = lvl + 1; return true;
+}
+
+// ---- Offline progress ----
+function offlineEfficiency(s) {
+  if (s.legacy.nightshift) return 1;
+  return 0.5 + Math.min(0.5, 0.01 * s.owned.coldbrew);
+}
+
+function applyOffline(s, now = Date.now()) {
+  const secs = Math.min(8 * 3600, Math.max(0, (now - s.lastSave) / 1000));
+  if (secs < 10) return { secs: 0, cups: 0 };
+  const r = rates(s);
+  const cups = r.cupsPerSec * secs * offlineEfficiency(s);
+  addCups(s, cups);
+  return { secs, cups };
+}
+
+// ---- Number formatting ----
+const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+function fmt(n) {
+  if (!isFinite(n)) return '0';
+  if (n < 1000) return n < 10 && n % 1 ? n.toFixed(1) : Math.floor(n).toString();
+  const e = Math.floor(Math.log10(n) / 3);
+  if (e < SUFFIX.length) return (n / Math.pow(1000, e)).toFixed(2) + SUFFIX[e];
+  return n.toExponential(2);
+}
+
+const Engine = {
+  GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN,
+  newGame, newRun, costOf, maxAffordable, mods, rates, tick, click, buy, upgradeAvailable, buyUpgrade,
+  setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt,
+};
+if (typeof module !== 'undefined') module.exports = Engine;
+
+</script>
+<script>
+// Bottomless Cup - browser UI. Depends on Engine (src/engine.js).
+(function () {
+  const E = Engine;
+  const SAVE_KEY = 'bottomless-cup-save-v1';
+  const $ = id => document.getElementById(id);
+  const fmt = E.fmt;
+
+  // ---------- Save / load ----------
+  function load() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw) return Object.assign(E.newGame(), JSON.parse(raw));
+    } catch (e) { /* storage blocked or corrupt: start fresh */ }
+    return null;
+  }
+  function save() {
+    S.lastSave = Date.now();
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ }
+  }
+  const exportSave = () => btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+  function importSave(str) {
+    const data = JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
+    if (typeof data.cups !== 'number' || !data.owned) throw new Error('bad');
+    S = Object.assign(E.newGame(), data);
+    save();
+  }
+
+  const hot = window.claude && window.claude.hot;
+  let S = (hot && hot.data && hot.data.state) || load() || E.newGame();
+  if (hot && hot.snapshot) hot.snapshot(() => ({ state: S }));
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+  }
+
+  const away = E.applyOffline(S);
+  if (away.secs > 0) {
+    const h = Math.floor(away.secs / 3600), m = Math.floor(away.secs % 3600 / 60);
+    setTimeout(() => toast(`Welcome back. In ${h}h ${m}m away your café brewed ${fmt(away.cups)} cups.`), 400);
+  }
+
+  // ---------- Clicking ----------
+  const brewBtn = $('brew');
+  brewBtn.addEventListener('click', ev => {
+    const got = E.click(S);
+    const p = document.createElement('div');
+    p.className = 'pop'; p.textContent = '+' + fmt(got);
+    const rect = brewBtn.getBoundingClientRect();
+    const x = ev.clientX ? ev.clientX - rect.left : rect.width / 2;
+    const y = ev.clientY ? ev.clientY - rect.top : rect.height / 3;
+    p.style.left = (x - 12) + 'px'; p.style.top = (y - 20) + 'px';
+    brewBtn.appendChild(p); setTimeout(() => p.remove(), 900);
+    pulse = 1;
+  });
+  let pulse = 0;
+
+  // ---------- Tabs ----------
+  let tab = 'build', buyMode = 1, confirmCafe = false, confirmGlobal = false, sig = '';
+  document.querySelector('.tabs').addEventListener('click', e => {
+    const b = e.target.closest('.tab'); if (!b) return;
+    tab = b.dataset.tab; confirmCafe = confirmGlobal = false;
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t === b));
+    render();
+  });
+
+  const STAGES = [
+    { k: 'farm', title: 'Farms', unit: 'green beans/s', c: 'var(--green)' },
+    { k: 'roast', title: 'Roasters', unit: 'roasted beans/s', c: 'var(--roast)' },
+    { k: 'brew', title: 'Brewers', unit: 'beans brewed/s', c: 'var(--crema)' },
+  ];
+
+  function buyCount(id) {
+    if (buyMode === 'max') return Math.max(1, E.maxAffordable(S, id));
+    return buyMode;
+  }
+
+  function render() {
+    const v = $('view');
+    if (tab === 'build') {
+      const m = E.mods(S);
+      v.innerHTML = `<div class="toolbar"><p>Buy for your <b>bottleneck</b> stage first.</p>
+        <div class="seg" role="group" aria-label="Buy amount">
+          ${[1, 10, 'max'].map(n => `<button data-mode="${n}" aria-pressed="${buyMode === n}">${n === 'max' ? 'Max' : 'x' + n}</button>`).join('')}
+        </div></div>` +
+        STAGES.map(st => `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4><div class="list">` +
+          E.BUILDINGS.filter(b => b.stage === st.k).map(b => `
+            <button class="item" data-buy="${b.id}">
+              <span class="t">${b.name}<span class="own" data-own></span></span>
+              <span class="p"><span data-cost></span><small data-cnt></small></span>
+              <span class="d">${fmt(b.rate)} ${st.unit} each${b.yield ? ` · ${b.perk}` : ''}</span>
+            </button>`).join('') + `</div></div>`).join('');
+    } else if (tab === 'upg') {
+      const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u)).sort((a, b) => a.cost - b.cost);
+      sig = list.map(u => u.id).join();
+      v.innerHTML = `<div class="toolbar"><p>One-time purchases. New ones appear as you grow.</p></div>` +
+        (list.length ? `<div class="list">` + list.map(u => `
+          <button class="item" data-upg="${u.id}">
+            <span class="t">${u.name}</span>
+            <span class="p" data-cost>${fmt(u.cost)}</span>
+            <span class="d">${u.desc}</span>
+          </button>`).join('') + `</div>` : `<p class="empty">Nothing new yet. Keep brewing.</p>`);
+    } else if (tab === 'beans') {
+      v.innerHTML = `<div class="toolbar"><p>Equip one variety. Swap any time. New beans unlock from Reputation Stars earned.</p></div><div class="list">` +
+        E.BEANS.map(b => {
+          const open = S.beansUnlocked[b.id];
+          return `<button class="item${S.bean === b.id ? ' sel' : ''}" data-bean="${b.id}" ${open ? '' : 'disabled'}>
+            <span class="t">${open ? b.name : 'Locked variety'}</span>
+            <span class="p">${S.bean === b.id ? 'Equipped' : open ? 'Equip' : `<small>needs</small>${b.stars} stars`}</span>
+            <span class="d">${open ? b.desc : 'Earn more Reputation Stars to unlock.'}</span></button>`;
+        }).join('') + `</div>`;
+    } else if (tab === 'cafe') {
+      v.innerHTML = `<div class="toolbar"><p>Prestige: sell this café and open a new one.</p></div>
+        <div class="panel">
+          <h3>Open a New Café</h3>
+          <p>Resets cups, buildings, stockpiles and upgrades. Keeps Stars, bean unlocks and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
+          <div class="stat num" data-pending>0<small>Stars on reset</small></div>
+          <p data-need></p>
+          <div class="row"><button class="act" data-act="cafe"></button><button class="ghost" data-act="cancel" hidden>Keep brewing</button></div>
+        </div>
+        <div class="panel"><p>Stars held <b class="num">${S.stars}</b> · earned this ascension <b class="num">${S.starsEarned}</b> · cafés opened <b class="num">${S.prestiges}</b></p></div>`;
+    } else if (tab === 'global') {
+      v.innerHTML = `<div class="toolbar"><p>Ascension: trade every Star for Origin Tokens.</p></div>
+        <div class="panel">
+          <h3>Go Global</h3>
+          <p>Resets your run and all Reputation Stars${S.legacy.vault ? '' : ' and bean unlocks'}. Origin Tokens buy permanent Legacy perks below.</p>
+          <div class="stat num" data-pending>0<small>Tokens on reset</small></div>
+          <p data-need></p>
+          <div class="row"><button class="act" data-act="global"></button><button class="ghost" data-act="cancel" hidden>Not yet</button></div>
+        </div>
+        <div class="group" style="--c:var(--ink)"><h4>Legacy perks · <span class="num" data-tokens></span> tokens</h4><div class="list">` +
+        E.LEGACY.map(p => `<button class="item" data-legacy="${p.id}">
+          <span class="t">${p.name}<span class="own" data-own></span></span>
+          <span class="p" data-cost></span>
+          <span class="d">${p.desc}</span></button>`).join('') + `</div></div>`;
+    } else if (tab === 'save') {
+      v.innerHTML = `<div class="toolbar"><p>Progress saves to this browser every 10 seconds.</p></div>
+        <div class="panel"><h3>Export or import</h3>
+          <p>Copy this code to move your save to another browser.</p>
+          <textarea id="savebox" aria-label="Save code" spellcheck="false"></textarea>
+          <div class="row"><button class="act" data-act="export">Show my save code</button><button class="ghost" data-act="copy">Copy</button><button class="ghost" data-act="import">Load code from box</button></div>
+        </div>
+        <div class="panel"><h3>Start over</h3><p>Erases everything, including Stars and Legacy perks.</p>
+          <div class="row"><button class="ghost" data-act="wipe">Erase save</button></div></div>`;
+    }
+    refresh();
+  }
+
+  $('view').addEventListener('click', e => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.mode) { buyMode = t.dataset.mode === 'max' ? 'max' : +t.dataset.mode; render(); return; }
+    if (t.dataset.buy) { E.buy(S, t.dataset.buy, buyCount(t.dataset.buy)); refresh(); return; }
+    if (t.dataset.upg) { if (E.buyUpgrade(S, t.dataset.upg)) { toast('Upgrade bought.'); render(); } return; }
+    if (t.dataset.bean) { E.setBean(S, t.dataset.bean); render(); return; }
+    if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy)) { toast('Legacy perk bought.'); save(); render(); } return; }
+    const a = t.dataset.act;
+    if (a === 'cancel') { confirmCafe = confirmGlobal = false; refresh(); }
+    if (a === 'cafe') {
+      if (!confirmCafe) { confirmCafe = true; refresh(); return; }
+      const g = E.prestige(S); confirmCafe = false; save();
+      toast(`New café open. +${g} Reputation Stars.`); render();
+    }
+    if (a === 'global') {
+      if (!confirmGlobal) { confirmGlobal = true; refresh(); return; }
+      const g = E.ascend(S); confirmGlobal = false; save();
+      toast(`You went global. +${g} Origin Tokens.`); render();
+    }
+    if (a === 'export') { $('savebox').value = exportSave(); }
+    if (a === 'copy') {
+      const box = $('savebox'); if (!box.value) box.value = exportSave();
+      navigator.clipboard.writeText(box.value).then(() => toast('Save code copied.'), () => { box.select(); toast('Press Ctrl+C to copy the selected code.'); });
+    }
+    if (a === 'import') {
+      try { importSave($('savebox').value); toast('Save loaded.'); render(); }
+      catch (err) { toast('That code could not be read. Paste the full save code and try again.'); }
+    }
+    if (a === 'wipe') {
+      if (t.dataset.armed) { S = E.newGame(); save(); toast('Save erased.'); render(); }
+      else { t.dataset.armed = '1'; t.textContent = 'Click again to erase everything'; t.classList.add('act', 'danger'); }
+    }
+  });
+
+  // ---------- Per-frame refresh ----------
+  let R = E.rates(S);
+  function refresh() {
+    R = E.rates(S);
+    $('cups').textContent = fmt(S.cups);
+    $('cps').textContent = fmt(R.cupsPerSec);
+    $('runcups').textContent = fmt(S.runCups);
+    $('clickpow').textContent = fmt(R.clickPower);
+    $('m-stars').textContent = fmt(S.stars);
+    $('m-tokens').textContent = fmt(S.tokens);
+    $('m-bean').textContent = E.BEANS.find(b => b.id === S.bean).name;
+    $('yield').textContent = R.yield.toFixed(2) + ' cups per roasted bean';
+
+    // chain
+    const max = Math.max(R.farm, R.roast, R.brew, 1e-9);
+    const stock = { farm: S.green, roast: S.roasted };
+    document.querySelectorAll('.stage').forEach(el => {
+      const k = el.dataset.k;
+      el.querySelector('.bar i').style.width = (R[k] / max * 100) + '%';
+      el.querySelector('.cap').textContent = fmt(R[k]) + '/s';
+      const sb = el.querySelector('.stock b'); if (sb) sb.textContent = fmt(stock[k]);
+      const lim = R.bottleneck === k;
+      el.classList.toggle('limit', lim);
+      el.querySelector('.flag').innerHTML = lim ? '<span class="badge">Bottleneck</span>' : '';
+    });
+
+    // cup fill: shows progress toward the next 10x of cups this run, plus a click pulse
+    const lg = S.runCups > 0 ? Math.log10(S.runCups) : 0;
+    const frac = Math.min(1, (lg % 1) * 0.85 + pulse * 0.08);
+    const y = 168 - frac * 112;
+    $('fill').setAttribute('y', y); $('crema').setAttribute('y', y - 4);
+
+    const v = $('view');
+    if (tab === 'build') {
+      v.querySelectorAll('[data-buy]').forEach(b => {
+        const id = b.dataset.buy, n = buyCount(id), c = E.costOf(S, id, n);
+        b.querySelector('[data-own]').textContent = S.owned[id];
+        b.querySelector('[data-cost]').textContent = fmt(c);
+        b.querySelector('[data-cnt]').textContent = 'buy ' + n;
+        b.disabled = c > S.cups;
+      });
+    } else if (tab === 'upg') {
+      const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
+      if (now !== sig) return render();
+      v.querySelectorAll('[data-upg]').forEach(b => { b.disabled = E.UPGRADES.find(u => u.id === b.dataset.upg).cost > S.cups; });
+    } else if (tab === 'cafe') {
+      const p = E.pendingStars(S);
+      const perStar = 2 + (S.legacy.starpower || 0);
+      v.querySelector('[data-perstar]').textContent = perStar + '%';
+      v.querySelector('[data-pending]').firstChild.textContent = '+' + fmt(p);
+      v.querySelector('[data-need]').textContent = S.runCups < E.PRESTIGE_MIN
+        ? `Brew ${fmt(E.PRESTIGE_MIN - S.runCups)} more cups this run to unlock.`
+        : `Production after reset: x${(1 + perStar / 100 * (S.stars + p)).toFixed(2)} from Stars (now x${(1 + perStar / 100 * S.stars).toFixed(2)}).`;
+      const btn = v.querySelector('[data-act="cafe"]');
+      btn.disabled = p <= 0;
+      btn.textContent = confirmCafe ? `Confirm: reset for ${fmt(p)} Stars` : 'Open a New Café';
+      btn.classList.toggle('danger', confirmCafe);
+      v.querySelector('[data-act="cancel"]').hidden = !confirmCafe;
+    } else if (tab === 'global') {
+      const p = E.pendingTokens(S);
+      v.querySelector('[data-pending]').firstChild.textContent = '+' + fmt(p);
+      v.querySelector('[data-need]').textContent = S.stars < E.ASCEND_MIN
+        ? `Hold ${fmt(E.ASCEND_MIN)} Reputation Stars to unlock (you have ${fmt(S.stars)}).` : 'Ready when you are.';
+      const btn = v.querySelector('[data-act="global"]');
+      btn.disabled = p <= 0;
+      btn.textContent = confirmGlobal ? `Confirm: reset for ${fmt(p)} tokens` : 'Go Global';
+      btn.classList.toggle('danger', confirmGlobal);
+      v.querySelector('[data-act="cancel"]').hidden = !confirmGlobal;
+      v.querySelector('[data-tokens]').textContent = S.tokens;
+      v.querySelectorAll('[data-legacy]').forEach(b => {
+        const p2 = E.LEGACY.find(x => x.id === b.dataset.legacy), lvl = S.legacy[p2.id] || 0;
+        b.querySelector('[data-own]').textContent = p2.max > 1 ? `${lvl}/${p2.max}` : (lvl ? 'owned' : '');
+        b.querySelector('[data-cost]').textContent = lvl >= p2.max ? 'Maxed' : p2.cost + ' tok';
+        b.disabled = lvl >= p2.max || S.tokens < p2.cost;
+      });
+    }
+    // dot on Upgrades tab when something is affordable
+    $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u) && u.cost <= S.cups);
+  }
+
+  // ---------- Game loop ----------
+  let last = performance.now(), acc = 0, saveAcc = 0;
+  function frame(now) {
+    const dt = Math.min(1, (now - last) / 1000); last = now;
+    E.tick(S, dt);
+    pulse = Math.max(0, pulse - dt * 3);
+    acc += dt; saveAcc += dt;
+    if (acc > 0.1) { acc = 0; refresh(); }
+    if (saveAcc > 10) { saveAcc = 0; save(); }
+    requestAnimationFrame(frame);
+  }
+  // catch up time the tab spent hidden (browsers pause requestAnimationFrame)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) save();
+    else { const got = E.applyOffline(S); if (got.cups > 0) toast(`While the tab was hidden you brewed ${fmt(got.cups)} cups.`); last = performance.now(); }
+  });
+  window.addEventListener('beforeunload', save);
+
+  // ---------- Dev helpers (open DevTools console: Ctrl+Shift+I) ----------
+  // BC.give(1e6) adds cups, BC.skip(3600) fast-forwards an hour, BC.state() shows the save.
+  window.BC = {
+    state: () => S,
+    give: n => { S.cups += n; S.runCups += n; S.lifetimeCups += n; render(); },
+    skip: secs => { for (let i = 0; i < secs; i++) E.tick(S, 1); render(); },
+    stars: n => { S.stars += n; S.starsEarned += n; E.BEANS.forEach(b => { if (S.starsEarned >= b.stars) S.beansUnlocked[b.id] = true; }); render(); },
+    tokens: n => { S.tokens += n; render(); },
+  };
+
+  render();
+  requestAnimationFrame(frame);
+})();
+
+</script>

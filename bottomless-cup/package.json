@@ -1,0 +1,16 @@
+{
+  "name": "bottomless-cup",
+  "version": "0.1.0",
+  "description": "An idle coffee empire game: grow, roast, brew, prestige, ascend.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "build": "node tools/build.js",
+    "simulate": "node tools/simulate.js",
+    "start": "node tools/build.js && electron .",
+    "start:nosandbox": "node tools/build.js && electron . --no-sandbox"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

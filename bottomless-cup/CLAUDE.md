@@ -1,0 +1,25 @@
+# Bottomless Cup
+
+Idle clicker game about coffee, headed for Steam. Plain HTML/JS, wrapped in Electron for desktop.
+The owner is new to game dev: explain changes in plain terms and keep the code simple.
+
+## How it fits together
+- `src/engine.js` holds all game rules and balance numbers. It has no DOM code, so it also runs in Node.
+  Buildings, beans, upgrades, Legacy perks, prestige/ascension formulas and offline progress all live here.
+- `src/ui.js` is the browser interface (tabs, buttons, game loop, saving to localStorage, `window.BC` dev cheats).
+- `src/index.template.html` holds the layout and CSS. `/*__ENGINE__*/` and `/*__UI__*/` are replaced at build time.
+- `tools/build.js` writes `dist/index.html` and `dist/desktop.html`. Never edit `dist/` by hand.
+- `tools/simulate.js` is a greedy bot that prints pacing (time to 1M cups, each prestige, first ascension).
+- `main.js` is the Electron window. `backgroundThrottling` is off so the game keeps running when minimized.
+
+## Commands
+- `node tools/build.js` rebuilds dist/ (run after every source edit)
+- `node tools/simulate.js` checks pacing after any balance change
+- `npm start` builds and opens the Electron window (`npm run start:nosandbox` on Ubuntu if the SUID sandbox error appears)
+
+## Rules
+- Balance changes go in `src/engine.js`. Run the simulator afterwards and report the before and after times.
+- Keep saves backward compatible. Loading merges the saved JSON over `newGame()`, so new fields need defaults there.
+- The design doc with the current numbers lives in Claude Docs. Mention which sections a change affects.
+- Current pacing targets: first prestige at about 25 min, first ascension at about 3.5 h.
+- Open balance issue: the bot never picks a bean other than Arabica, so the stage-boost beans need a reason to be chosen.
