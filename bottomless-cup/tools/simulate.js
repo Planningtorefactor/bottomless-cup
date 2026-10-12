@@ -13,7 +13,17 @@ function bestBean(s) {
   s.bean = best;
 }
 
+// Active player: restarts every idle unmanaged building once every CLICK_GAP seconds.
+const CLICK_GAP = 2;
+function botClick(s, t) {
+  if (t % CLICK_GAP === 0) for (const b of E.BUILDINGS) E.runBuilding(s, b.id);
+}
+
 function botStep(s, t) {
+  // hire managers for buildings we own, cheapest first, once we hold 3x the price
+  // (hiring the instant you can afford one starves building purchases)
+  for (const b of [...E.BUILDINGS].sort((x, y) => x.manager - y.manager))
+    if (s.owned[b.id] && !s.managers[b.id] && s.cups >= 3 * b.manager) E.buyManager(s, b.id);
   // buy every affordable upgrade
   for (const u of E.UPGRADES) if (E.upgradeAvailable(s, u) && s.cups >= u.cost) E.buyUpgrade(s, u.id);
   // buy for the bottleneck stage, best output per cup
@@ -32,6 +42,7 @@ function playRun(s, prestigeRule, maxSecs, clickSecs = 120, cps = 4) {
   bestBean(s);
   while (t < maxSecs) {
     if (t < clickSecs) for (let i = 0; i < cps; i++) E.click(s);
+    botClick(s, t);
     E.tick(s, 1); t++;
     if (t % 5 === 0) botStep(s, t);
     if (prestigeRule(s, t)) return t;
@@ -45,11 +56,14 @@ const hms = sec => `${Math.floor(sec / 3600)}h ${Math.floor(sec % 3600 / 60)}m`;
 {
   const s = E.newGame();
   const marks = [1e3, 1e4, 1e5, 1e6, 1e7];
-  let mi = 0, t = 0;
+  let mi = 0, t = 0, hired = 0;
   while (mi < marks.length && t < 6 * 3600) {
     if (t < 120) for (let i = 0; i < 4; i++) E.click(s);
+    botClick(s, t);
     E.tick(s, 1); t++;
     if (t % 5 === 0) botStep(s, t);
+    const h = Object.keys(s.managers).length;
+    if (h > hired) { hired = h; console.log(`run1 manager #${h} hired at ${hms(t)}: ${Object.keys(s.managers).join(', ')}`); }
     if (s.runCups >= marks[mi]) {
       const r = E.rates(s);
       console.log(`run1 ${E.fmt(marks[mi]).padEnd(8)} at ${hms(t)}  cups/s ${E.fmt(r.cupsPerSec)}  F/R/B ${E.fmt(r.farm)}/${E.fmt(r.roast)}/${E.fmt(r.brew)}`);

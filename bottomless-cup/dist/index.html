@@ -63,8 +63,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 @keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-60px); } }
 @media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 0; } .cupbtn svg { transition: none; } }
 
-.chain { display: grid; gap: 10px; }
-.chain h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-family: var(--body); font-weight: 600; }
+.chain { display: grid; }
+.chain h3 { margin-bottom: 10px; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-family: var(--body); font-weight: 600; }
 .stage { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .stage .name { font-weight: 600; font-size: .9rem; }
 .stage .name span { display: block; font-weight: 400; color: var(--muted); font-size: .74rem; }
@@ -77,7 +77,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .stage .stock { grid-column: 2 / 4; font-size: .74rem; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
 .badge { font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--warn); border: 1px solid currentColor; padding: 1px 6px; border-radius: 99px; }
 .stage.limit { border-color: var(--warn); }
-.yieldline { font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; padding-inline: 4px; }
+.yieldline { font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; padding-inline: 4px; margin-top: 10px; }
+/* Pipes between chain stages: a bean drops through each time a cycle finishes */
+.pipe { position: relative; height: 22px; }
+.pipe::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--line); }
+.bean { position: absolute; top: 0; width: 8px; height: 6px; border-radius: 50%; pointer-events: none; animation: drop .55s ease-in forwards; }
+.pipe[data-from="farm"] .bean { background: var(--green); }
+.pipe[data-from="roast"] .bean { background: var(--roast); }
+@keyframes drop { from { transform: translate(-50%, -6px); opacity: 0; } 25% { opacity: 1; } to { transform: translate(-50%, 20px); opacity: 0; } }
 
 /* Shop */
 .shop { min-width: 0; }
@@ -104,6 +111,44 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .item .p { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: var(--mono); font-size: .88rem; }
 .item .p small { display: block; color: var(--muted); font-family: var(--body); font-size: .7rem; }
 .item.sel { border-color: var(--crema); background: var(--crema-soft); }
+
+/* Building rows: click the left side to run a cycle, buy and hire on the right */
+.bld { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 128px; gap: 6px 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.bld .run { grid-row: 1 / 3; display: grid; align-content: center; gap: 6px; min-width: 0; text-align: left; background: none; border: 0; padding: 0; }
+.bld.managed .run, .bld.none .run { cursor: default; }
+.bld .t { font-weight: 600; }
+.bld .own { display: inline-block; font-family: var(--mono); color: var(--muted); font-weight: 500; margin-left: 6px; font-size: .85rem; }
+.bld .d { display: flex; justify-content: space-between; gap: 8px; font-size: .76rem; color: var(--muted); }
+.bld .d small { font-size: inherit; }
+.cyc { display: block; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.cyc i { display: block; height: 100%; background: var(--c); transform-origin: left; transform: scaleX(0); }
+.bld.fast .cyc i { background-image: repeating-linear-gradient(45deg, rgb(255 255 255 / .28) 0 6px, transparent 6px 12px); background-size: 17px 17px; animation: flow .6s linear infinite; }
+@keyframes flow { to { background-position: 17px 0; } }
+.bld .run[disabled] { color: inherit; }
+.bld.managed [data-state] { color: var(--ok); }
+.bld.idle [data-state] { color: var(--crema); font-weight: 600; animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .45; } }
+.bld.starved .cyc i { opacity: .4; }
+.bld.starved [data-state] { color: var(--warn); }
+.bld .buy { display: grid; text-align: right; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-family: var(--mono); font-size: .86rem; }
+.bld .buy small { font-family: var(--body); font-size: .68rem; color: var(--muted); }
+.bld .buy:hover:not([disabled]), .bld .mgr:hover:not([disabled]) { border-color: var(--crema); }
+.bld button[disabled] { opacity: .5; cursor: default; }
+.bld .mgr { position: relative; padding: 4px 10px; border-radius: 8px; border: 1px dashed var(--line); background: none; font-size: .72rem; font-weight: 600; text-align: right; }
+.bld.managed .mgr[disabled] { opacity: 1; border-style: solid; color: var(--ok); }
+/* purchase feedback */
+.bld.bump { animation: bump .25s ease-out; }
+@keyframes bump { 40% { transform: scale(1.02); } }
+.own.tick { animation: tick .35s ease-out; }
+@keyframes tick { 30% { color: var(--crema); transform: translateY(-3px); } }
+.bld.hired { animation: hired .8s ease-out; }
+@keyframes hired { from { box-shadow: 0 0 0 0 var(--crema); } to { box-shadow: 0 0 0 12px transparent; } }
+.spark { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: var(--crema); pointer-events: none; animation: spark .6s ease-out forwards; }
+@keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .bean, .spark { display: none; }
+  .bld.bump, .bld.hired, .own.tick, .bld.idle [data-state], .bld.fast .cyc i { animation: none; }
+}
 .empty { color: var(--muted); font-size: .88rem; padding: 12px 0; }
 
 .panel { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: grid; gap: 10px; margin-bottom: 14px; }
@@ -133,7 +178,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
     </div>
     <div class="score">
       <div><span class="big" id="cups">0</span><span class="unit">cups</span></div>
-      <div class="rate"><span class="num" id="cps">0</span> per second · <span class="num" id="runcups">0</span> brewed this run</div>
+      <div class="rate"><span class="num" id="cps">0</span> per second from managers · <span class="num" id="runcups">0</span> brewed this run</div>
     </div>
   </header>
 
@@ -160,7 +205,9 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
       <div class="chain">
         <h3>Supply chain</h3>
         <div class="stage" data-k="farm"><div class="name">Farms<span>green beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="pipe" data-from="farm" aria-hidden="true"></div>
         <div class="stage" data-k="roast"><div class="name">Roasters<span>roasted beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="pipe" data-from="roast" aria-hidden="true"></div>
         <div class="stage" data-k="brew"><div class="name">Brewers<span>cups</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>capacity in roasted beans/s</span><span class="flag"></span></div></div>
         <div class="yieldline"><span>Brew yield</span><span class="num" id="yield">1.00 cups per roasted bean</span></div>
       </div>
@@ -213,6 +260,18 @@ const BUILDINGS = [
     perk: '1.4 yield, +1% offline efficiency each (max +50%).' },
 ];
 
+// Production runs in cycles, like AdVenture Capitalist. Each building type has a fixed cycle
+// time (cheap tiers are quick); owning more makes each batch bigger, not the bar faster.
+// A batch is rate * cycle, so the average output per second matches the rate above.
+const CYCLE_BY_TIER = [1, 3, 6, 12, 24];   // seconds, tier 1..5 within each stage
+const MANAGER_MULT = 20;                    // manager price = building base cost * this
+for (const st of ['farm', 'roast', 'brew']) {
+  BUILDINGS.filter(b => b.stage === st).forEach((b, i) => {
+    b.cycle = CYCLE_BY_TIER[i];
+    b.manager = b.cost * MANAGER_MULT;
+  });
+}
+
 const BEANS = [
   { id: 'arabica',     name: 'Arabica',     stars: 0,   desc: '+10% brew yield. The balanced starter.',
     mods: { yield: 1.10 } },
@@ -240,9 +299,9 @@ const UPGRADES = [
 ];
 for (const b of BUILDINGS) {
   UPGRADES.push({ id: b.id + '_10', name: b.name + ' Tune-up', cost: b.cost * 40, need: { id: b.id, n: 10 },
-    desc: b.name + ' output x2 (needs 10).', mods: { bld: { [b.id]: 2 } } });
+    desc: b.name + ' cycles twice as fast (needs 10).', mods: { speed: { [b.id]: 2 } } });
   UPGRADES.push({ id: b.id + '_25', name: b.name + ' Mastery', cost: b.cost * 400, need: { id: b.id, n: 25 },
-    desc: b.name + ' output x2 (needs 25).', mods: { bld: { [b.id]: 2 } } });
+    desc: b.name + ' cycles twice as fast (needs 25).', mods: { speed: { [b.id]: 2 } } });
 }
 
 // Ascension perks bought with Origin Tokens. max = how many levels.
@@ -253,6 +312,7 @@ const LEGACY = [
   { id: 'nightshift',name: 'Night Shift',         cost: 2, max: 1, desc: 'Offline production 50% -> 100%.' },
   { id: 'starpower', name: 'Star Power',          cost: 2, max: 5, desc: 'Each Reputation Star gives +1% more per level.' },
   { id: 'supply',    name: 'Global Supply Chain', cost: 3, max: 3, desc: 'All production x2 per level.' },
+  { id: 'staff',     name: 'Loyal Staff',         cost: 3, max: 1, desc: 'Managers stay hired when you Open a New Cafe or Go Global.' },
   { id: 'autobuy',   name: 'Operations Manager',  cost: 4, max: 1, desc: 'Auto-buys a building for your bottleneck stage every 2 seconds.' },
 ];
 
@@ -267,6 +327,10 @@ function newRun(state) {
   state.owned = {};
   for (const b of BUILDINGS) state.owned[b.id] = 0;
   state.upgrades = {};
+  state.progress = {};   // seconds into the current cycle, per building
+  state.running = {};    // unmanaged buildings started by a click (run one cycle)
+  state.fill = {};       // share of the last batch a roaster/brewer actually got (1 = full)
+  if (!(state.legacy || {}).staff || !state.managers) state.managers = {};
   if ((state.legacy || {}).headstart) {
     state.owned.bush = 5; state.owned.pan = 5; state.owned.drip = 5;
   }
@@ -285,6 +349,7 @@ function newGame() {
     legacy: {},          // legacy perk levels
     prestiges: 0,
     ascensions: 0,
+    managers: {},        // building id -> true once a manager is hired
     lastSave: Date.now(),
     autoTimer: 0,
   };
@@ -306,11 +371,12 @@ function maxAffordable(s, id) {
 }
 
 // Collect every multiplier from upgrades, bean, prestige and legacy.
+// speed = per-building cycle speed (2 means cycles take half as long).
 function mods(s) {
-  const m = { farm: 1, roast: 1, brew: 1, yield: 1, click: 1, all: 1, clickPct: 0, bld: {} };
+  const m = { farm: 1, roast: 1, brew: 1, yield: 1, click: 1, all: 1, clickPct: 0, speed: {} };
   const apply = src => {
     for (const k in src) {
-      if (k === 'bld') for (const id in src.bld) m.bld[id] = (m.bld[id] || 1) * src.bld[id];
+      if (k === 'speed') for (const id in src.speed) m.speed[id] = (m.speed[id] || 1) * src.speed[id];
       else if (k === 'clickPct') m.clickPct += src[k];
       else m[k] *= src[k];
     }
@@ -326,17 +392,32 @@ function mods(s) {
   return m;
 }
 
-// Capacity per stage, already multiplied. Brewer yield is a capacity-weighted average.
+// Seconds per cycle for a building type, and what one cycle of all its copies handles.
+function cycleTime(s, id, m = mods(s)) { return bld(id).cycle / (m.speed[id] || 1); }
+function batch(s, id, m = mods(s)) {
+  const b = bld(id);
+  return s.owned[id] * b.rate * b.cycle * m[b.stage] * m.all;
+}
+
+// Average capacity per stage (batch / cycle time), already multiplied.
+// Brewer yield is a capacity-weighted average.
+// cupsPerSec only counts managed buildings: that is what runs on its own (and offline).
 function rates(s) {
   const m = mods(s);
   const r = { farm: 0, roast: 0, brew: 0, yieldWeighted: 0 };
+  const auto = { farm: 0, roast: 0, brew: 0, yieldWeighted: 0 };
   for (const b of BUILDINGS) {
-    const out = s.owned[b.id] * b.rate * (m.bld[b.id] || 1) * m[b.stage] * m.all;
+    const out = s.owned[b.id] * b.rate * (m.speed[b.id] || 1) * m[b.stage] * m.all;
     r[b.stage] += out;
     if (b.stage === 'brew') r.yieldWeighted += out * b.yield;
+    if (s.managers[b.id]) {
+      auto[b.stage] += out;
+      if (b.stage === 'brew') auto.yieldWeighted += out * b.yield;
+    }
   }
   r.yield = (r.brew > 0 ? r.yieldWeighted / r.brew : 1) * m.yield;
-  r.cupsPerSec = Math.min(r.farm, r.roast, r.brew) * r.yield; // steady state
+  const autoYield = (auto.brew > 0 ? auto.yieldWeighted / auto.brew : 1) * m.yield;
+  r.cupsPerSec = Math.min(auto.farm, auto.roast, auto.brew) * autoYield; // steady state
   r.bottleneck = r.cupsPerSec === 0 && r.farm + r.roast + r.brew === 0 ? null
     : (r.farm <= r.roast && r.farm <= r.brew ? 'farm' : r.roast <= r.brew ? 'roast' : 'brew');
   r.clickPower = m.click + m.clickPct * r.cupsPerSec;
@@ -345,15 +426,49 @@ function rates(s) {
 
 function addCups(s, n) { s.cups += n; s.runCups += n; s.lifetimeCups += n; }
 
-// Advance the simulation by dt seconds.
+// A building finished `n` cycles. Farms make green beans; roasters and brewers take
+// whatever their input stockpile has, up to a full batch each.
+function finishCycles(s, b, n, m) {
+  const want = batch(s, b.id, m) * n;
+  if (b.stage === 'farm') { s.green += want; return; }
+  const from = b.stage === 'roast' ? 'green' : 'roasted';
+  const used = Math.min(s[from], want);
+  s[from] -= used;
+  s.fill[b.id] = want > 0 ? used / want : 1;
+  if (b.stage === 'roast') s.roasted += used;
+  else addCups(s, used * b.yield * m.yield);
+}
+
+// Click an unmanaged building to run one cycle.
+function runBuilding(s, id) {
+  if (!s.owned[id] || s.managers[id] || s.running[id]) return false;
+  s.running[id] = true; s.progress[id] = 0; return true;
+}
+
+function buyManager(s, id, free = false) {
+  const b = bld(id);
+  if (!b || s.managers[id] || (!free && s.cups < b.manager)) return false;
+  if (!free) s.cups -= b.manager;
+  s.managers[id] = true; s.running[id] = false; return true;
+}
+
+// Advance the simulation by dt seconds. Buildings run in list order: farms, roasters, brewers.
+// Returns rates plus `done`: building id -> cycles finished this tick (the UI animates these).
 function tick(s, dt) {
-  const r = rates(s);
-  s.green += r.farm * dt;
-  const roasted = Math.min(s.green, r.roast * dt);
-  s.green -= roasted; s.roasted += roasted;
-  const brewed = Math.min(s.roasted, r.brew * dt);
-  s.roasted -= brewed;
-  addCups(s, brewed * r.yield);
+  const r = rates(s), m = mods(s);
+  r.done = {};
+  for (const b of BUILDINGS) {
+    const id = b.id, managed = s.managers[id];
+    if (!s.owned[id] || (!managed && !s.running[id])) continue;
+    const ct = cycleTime(s, id, m);
+    s.progress[id] = (s.progress[id] || 0) + dt;
+    let n = Math.floor(s.progress[id] / ct);
+    if (n < 1) continue;
+    if (managed) s.progress[id] -= n * ct;
+    else { n = 1; s.running[id] = false; s.progress[id] = 0; }
+    finishCycles(s, b, n, m);
+    r.done[id] = n;
+  }
   // Operations Manager legacy perk
   if (s.legacy.autobuy) {
     s.autoTimer += dt;
@@ -453,7 +568,8 @@ function fmt(n) {
 
 const Engine = {
   GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN,
-  newGame, newRun, costOf, maxAffordable, mods, rates, tick, click, buy, upgradeAvailable, buyUpgrade,
+  newGame, newRun, costOf, maxAffordable, mods, cycleTime, batch, rates, tick, click, buy, runBuilding, buyManager,
+  upgradeAvailable, buyUpgrade,
   setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt,
 };
 if (typeof module !== 'undefined') module.exports = Engine;
@@ -524,6 +640,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
   // Testing toggle: buildings, upgrades and Legacy perks cost nothing (you still buy each one).
   // Not saved, so it is off after a reload.
   let freeBuys = false;
+  let bars = [];   // building rows' cycle bars, filled in by render()
   const freeBtn = () => `<button class="ghost" data-act="free" aria-pressed="${freeBuys}">Free buying: ${freeBuys ? 'ON' : 'off'}</button>`;
   document.querySelector('.tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab'); if (!b) return;
@@ -553,11 +670,16 @@ if (typeof module !== 'undefined') module.exports = Engine;
         </div></div>` +
         STAGES.map(st => `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4><div class="list">` +
           E.BUILDINGS.filter(b => b.stage === st.k).map(b => `
-            <button class="item" data-buy="${b.id}">
-              <span class="t">${b.name}<span class="own" data-own></span></span>
-              <span class="p"><span data-cost></span><small data-cnt></small></span>
-              <span class="d">${fmt(b.rate)} ${st.unit} each${b.yield ? ` · ${b.perk}` : ''}</span>
-            </button>`).join('') + `</div></div>`).join('');
+            <div class="bld" data-id="${b.id}">
+              <button class="run" data-run="${b.id}" title="${b.perk || ''}">
+                <span class="t">${b.name}<span class="own" data-own></span></span>
+                <span class="cyc"><i></i></span>
+                <span class="d"><span data-batch></span><small data-state></small></span>
+              </button>
+              <button class="buy" data-buy="${b.id}"><span data-cost></span><small data-cnt></small></button>
+              <button class="mgr" data-mgr="${b.id}"></button>
+            </div>`).join('') + `</div></div>`).join('');
+      bars = [...v.querySelectorAll('.bld')].map(el => ({ id: el.dataset.id, i: el.querySelector('.cyc i') }));
     } else if (tab === 'upg') {
       const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost);
       sig = list.map(u => u.id).join();
@@ -617,7 +739,18 @@ if (typeof module !== 'undefined') module.exports = Engine;
   $('view').addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.mode) { buyMode = t.dataset.mode === 'max' ? 'max' : +t.dataset.mode; render(); return; }
-    if (t.dataset.buy) { E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys); refresh(); return; }
+    if (t.dataset.run) { if (E.runBuilding(S, t.dataset.run)) refresh(); return; }
+    if (t.dataset.buy) {
+      if (E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys)) {
+        const row = t.closest('.bld'); replay(row, 'bump'); replay(row.querySelector('.own'), 'tick');
+      }
+      refresh(); return;
+    }
+    if (t.dataset.mgr) {
+      const b = E.BUILDINGS.find(x => x.id === t.dataset.mgr);
+      if (E.buyManager(S, b.id, freeBuys)) { replay(t.closest('.bld'), 'hired'); burst(t); toast(`Manager hired: ${b.name} now runs on its own.`); }
+      refresh(); return;
+    }
     if (t.dataset.upg) { if (E.buyUpgrade(S, t.dataset.upg, freeBuys)) { toast('Upgrade bought.'); render(); } return; }
     if (t.dataset.bean) { E.setBean(S, t.dataset.bean); render(); return; }
     if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy, freeBuys)) { toast('Legacy perk bought.'); save(); render(); } return; }
@@ -683,12 +816,32 @@ if (typeof module !== 'undefined') module.exports = Engine;
 
     const v = $('view');
     if (tab === 'build') {
-      v.querySelectorAll('[data-buy]').forEach(b => {
-        const id = b.dataset.buy, n = buyCount(id), c = E.costOf(S, id, n);
-        b.querySelector('[data-own]').textContent = S.owned[id];
-        b.querySelector('[data-cost]').textContent = fmt(c);
-        b.querySelector('[data-cnt]').textContent = 'buy ' + n;
-        b.disabled = !freeBuys && c > S.cups;
+      const m = E.mods(S);
+      v.querySelectorAll('.bld').forEach(row => {
+        const id = row.dataset.id, b = E.BUILDINGS.find(x => x.id === id);
+        const n = buyCount(id), c = E.costOf(S, id, n), ct = E.cycleTime(S, id, m);
+        const owned = S.owned[id], managed = !!S.managers[id], active = managed || S.running[id];
+        const starved = active && b.stage !== 'farm' && owned > 0 && (S.fill[id] ?? 1) < 0.75;
+        const fast = managed && ct < 0.25;
+        row.querySelector('[data-own]').textContent = owned;
+        let out = E.batch(S, id, m), unit = b.stage === 'farm' ? 'green beans' : 'roasted beans';
+        if (b.stage === 'brew') { out *= b.yield * m.yield; unit = 'cups'; }
+        row.querySelector('[data-batch]').textContent = owned ? `+${fmt(out)} ${unit} every ${secs(ct)}` : `${secs(ct)} cycle`;
+        row.querySelector('[data-state]').textContent = !owned ? 'Buy one to start' : starved ? 'Waiting for beans'
+          : fast ? 'Nonstop' : managed ? 'Managed' : active ? 'Running' : 'Click to run';
+        row.classList.toggle('none', !owned);
+        row.classList.toggle('managed', managed);
+        row.classList.toggle('idle', owned > 0 && !active);
+        row.classList.toggle('starved', starved);
+        row.classList.toggle('fast', fast);
+        row.querySelector('[data-run]').disabled = !owned;
+        const buyBtn = row.querySelector('[data-buy]');
+        buyBtn.querySelector('[data-cost]').textContent = fmt(c);
+        buyBtn.querySelector('[data-cnt]').textContent = 'buy ' + n;
+        buyBtn.disabled = !freeBuys && c > S.cups;
+        const mgr = row.querySelector('[data-mgr]');
+        mgr.textContent = managed ? 'Manager hired' : `Hire manager ${fmt(b.manager)}`;
+        mgr.disabled = managed || (!freeBuys && b.manager > S.cups);
       });
     } else if (tab === 'upg') {
       const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
@@ -730,10 +883,53 @@ if (typeof module !== 'undefined') module.exports = Engine;
   }
 
   // ---------- Game loop ----------
+  // Cycle bars move every frame (refresh only runs 10 times a second).
+  function drawBars() {
+    if (tab !== 'build') return;
+    const m = E.mods(S);
+    for (const { id, i } of bars) {
+      const ct = E.cycleTime(S, id, m), managed = S.managers[id];
+      const f = managed && ct < 0.25 ? 1 : managed || S.running[id] ? Math.min(1, (S.progress[id] || 0) / ct) : 0;
+      i.style.transform = `scaleX(${f})`;
+    }
+  }
+
+  // Bean flow: a bean drops down the pipe when a farm or roaster cycle delivers,
+  // and the cup pulses when a brewer delivers. Throttled so fast cycles don't flood it.
+  const lastBean = {};
+  function beanFlow(done, now) {
+    for (const id in done) {
+      const b = E.BUILDINGS.find(x => x.id === id);
+      if (b.stage !== 'farm' && !(S.fill[id] > 0)) continue;
+      if (now - (lastBean[b.stage] || 0) < 120) continue;
+      lastBean[b.stage] = now;
+      if (b.stage === 'brew') { pulse = Math.max(pulse, 0.6); continue; }
+      const pipe = document.querySelector(`.pipe[data-from="${b.stage}"]`);
+      const d = document.createElement('i');
+      d.className = 'bean'; d.style.left = (40 + Math.random() * 20) + '%';
+      pipe.appendChild(d); setTimeout(() => d.remove(), 600);
+    }
+  }
+
+  // Restart a CSS animation on an element (purchase feedback).
+  function replay(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  // A small burst of sparks from a button (manager hired).
+  function burst(el) {
+    for (let k = 0; k < 12; k++) {
+      const sp = document.createElement('i'), a = k / 12 * Math.PI * 2, r = 28 + Math.random() * 16;
+      sp.className = 'spark';
+      sp.style.setProperty('--dx', Math.cos(a) * r + 'px'); sp.style.setProperty('--dy', Math.sin(a) * r + 'px');
+      el.appendChild(sp); setTimeout(() => sp.remove(), 650);
+    }
+  }
+  const secs = t => t >= 10 ? Math.round(t) + 's' : t >= 1 ? t.toFixed(1) + 's' : t.toFixed(2) + 's';
+
   let last = performance.now(), acc = 0, saveAcc = 0;
   function frame(now) {
     const dt = Math.min(1, (now - last) / 1000); last = now;
-    E.tick(S, dt);
+    const r = E.tick(S, dt);
+    beanFlow(r.done, now);
+    drawBars();
     pulse = Math.max(0, pulse - dt * 3);
     acc += dt; saveAcc += dt;
     if (acc > 0.1) { acc = 0; refresh(); }

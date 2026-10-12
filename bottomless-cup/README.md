@@ -3,6 +3,10 @@
 An idle coffee game: farms grow green beans, roasters roast them, brewers turn them into cups.
 Prestige = **Open a New Café** (Reputation Stars). Ascension = **Go Global** (Origin Tokens, Legacy perks).
 
+Buildings produce in **cycles** (each type has its own timer bar; owning more makes each batch bigger).
+Click a building to run one cycle, or hire its **manager** so it runs on its own (and offline).
+Managers reset on a New Café unless you own the **Loyal Staff** Legacy perk.
+
 ## Folder layout
 
 ```

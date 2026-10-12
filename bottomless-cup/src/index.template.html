@@ -63,8 +63,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 @keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-60px); } }
 @media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 0; } .cupbtn svg { transition: none; } }
 
-.chain { display: grid; gap: 10px; }
-.chain h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-family: var(--body); font-weight: 600; }
+.chain { display: grid; }
+.chain h3 { margin-bottom: 10px; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-family: var(--body); font-weight: 600; }
 .stage { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .stage .name { font-weight: 600; font-size: .9rem; }
 .stage .name span { display: block; font-weight: 400; color: var(--muted); font-size: .74rem; }
@@ -77,7 +77,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .stage .stock { grid-column: 2 / 4; font-size: .74rem; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
 .badge { font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--warn); border: 1px solid currentColor; padding: 1px 6px; border-radius: 99px; }
 .stage.limit { border-color: var(--warn); }
-.yieldline { font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; padding-inline: 4px; }
+.yieldline { font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; padding-inline: 4px; margin-top: 10px; }
+/* Pipes between chain stages: a bean drops through each time a cycle finishes */
+.pipe { position: relative; height: 22px; }
+.pipe::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--line); }
+.bean { position: absolute; top: 0; width: 8px; height: 6px; border-radius: 50%; pointer-events: none; animation: drop .55s ease-in forwards; }
+.pipe[data-from="farm"] .bean { background: var(--green); }
+.pipe[data-from="roast"] .bean { background: var(--roast); }
+@keyframes drop { from { transform: translate(-50%, -6px); opacity: 0; } 25% { opacity: 1; } to { transform: translate(-50%, 20px); opacity: 0; } }
 
 /* Shop */
 .shop { min-width: 0; }
@@ -104,6 +111,44 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .item .p { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: var(--mono); font-size: .88rem; }
 .item .p small { display: block; color: var(--muted); font-family: var(--body); font-size: .7rem; }
 .item.sel { border-color: var(--crema); background: var(--crema-soft); }
+
+/* Building rows: click the left side to run a cycle, buy and hire on the right */
+.bld { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 128px; gap: 6px 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.bld .run { grid-row: 1 / 3; display: grid; align-content: center; gap: 6px; min-width: 0; text-align: left; background: none; border: 0; padding: 0; }
+.bld.managed .run, .bld.none .run { cursor: default; }
+.bld .t { font-weight: 600; }
+.bld .own { display: inline-block; font-family: var(--mono); color: var(--muted); font-weight: 500; margin-left: 6px; font-size: .85rem; }
+.bld .d { display: flex; justify-content: space-between; gap: 8px; font-size: .76rem; color: var(--muted); }
+.bld .d small { font-size: inherit; }
+.cyc { display: block; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.cyc i { display: block; height: 100%; background: var(--c); transform-origin: left; transform: scaleX(0); }
+.bld.fast .cyc i { background-image: repeating-linear-gradient(45deg, rgb(255 255 255 / .28) 0 6px, transparent 6px 12px); background-size: 17px 17px; animation: flow .6s linear infinite; }
+@keyframes flow { to { background-position: 17px 0; } }
+.bld .run[disabled] { color: inherit; }
+.bld.managed [data-state] { color: var(--ok); }
+.bld.idle [data-state] { color: var(--crema); font-weight: 600; animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .45; } }
+.bld.starved .cyc i { opacity: .4; }
+.bld.starved [data-state] { color: var(--warn); }
+.bld .buy { display: grid; text-align: right; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-family: var(--mono); font-size: .86rem; }
+.bld .buy small { font-family: var(--body); font-size: .68rem; color: var(--muted); }
+.bld .buy:hover:not([disabled]), .bld .mgr:hover:not([disabled]) { border-color: var(--crema); }
+.bld button[disabled] { opacity: .5; cursor: default; }
+.bld .mgr { position: relative; padding: 4px 10px; border-radius: 8px; border: 1px dashed var(--line); background: none; font-size: .72rem; font-weight: 600; text-align: right; }
+.bld.managed .mgr[disabled] { opacity: 1; border-style: solid; color: var(--ok); }
+/* purchase feedback */
+.bld.bump { animation: bump .25s ease-out; }
+@keyframes bump { 40% { transform: scale(1.02); } }
+.own.tick { animation: tick .35s ease-out; }
+@keyframes tick { 30% { color: var(--crema); transform: translateY(-3px); } }
+.bld.hired { animation: hired .8s ease-out; }
+@keyframes hired { from { box-shadow: 0 0 0 0 var(--crema); } to { box-shadow: 0 0 0 12px transparent; } }
+.spark { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: var(--crema); pointer-events: none; animation: spark .6s ease-out forwards; }
+@keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .bean, .spark { display: none; }
+  .bld.bump, .bld.hired, .own.tick, .bld.idle [data-state], .bld.fast .cyc i { animation: none; }
+}
 .empty { color: var(--muted); font-size: .88rem; padding: 12px 0; }
 
 .panel { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: grid; gap: 10px; margin-bottom: 14px; }
@@ -133,7 +178,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
     </div>
     <div class="score">
       <div><span class="big" id="cups">0</span><span class="unit">cups</span></div>
-      <div class="rate"><span class="num" id="cps">0</span> per second · <span class="num" id="runcups">0</span> brewed this run</div>
+      <div class="rate"><span class="num" id="cps">0</span> per second from managers · <span class="num" id="runcups">0</span> brewed this run</div>
     </div>
   </header>
 
@@ -160,7 +205,9 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
       <div class="chain">
         <h3>Supply chain</h3>
         <div class="stage" data-k="farm"><div class="name">Farms<span>green beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="pipe" data-from="farm" aria-hidden="true"></div>
         <div class="stage" data-k="roast"><div class="name">Roasters<span>roasted beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="pipe" data-from="roast" aria-hidden="true"></div>
         <div class="stage" data-k="brew"><div class="name">Brewers<span>cups</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>capacity in roasted beans/s</span><span class="flag"></span></div></div>
         <div class="yieldline"><span>Brew yield</span><span class="num" id="yield">1.00 cups per roasted bean</span></div>
       </div>

@@ -62,6 +62,7 @@
   // Testing toggle: buildings, upgrades and Legacy perks cost nothing (you still buy each one).
   // Not saved, so it is off after a reload.
   let freeBuys = false;
+  let bars = [];   // building rows' cycle bars, filled in by render()
   const freeBtn = () => `<button class="ghost" data-act="free" aria-pressed="${freeBuys}">Free buying: ${freeBuys ? 'ON' : 'off'}</button>`;
   document.querySelector('.tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab'); if (!b) return;
@@ -91,11 +92,16 @@
         </div></div>` +
         STAGES.map(st => `<div class="group" style="--c:${st.c}"><h4>${st.title}</h4><div class="list">` +
           E.BUILDINGS.filter(b => b.stage === st.k).map(b => `
-            <button class="item" data-buy="${b.id}">
-              <span class="t">${b.name}<span class="own" data-own></span></span>
-              <span class="p"><span data-cost></span><small data-cnt></small></span>
-              <span class="d">${fmt(b.rate)} ${st.unit} each${b.yield ? ` · ${b.perk}` : ''}</span>
-            </button>`).join('') + `</div></div>`).join('');
+            <div class="bld" data-id="${b.id}">
+              <button class="run" data-run="${b.id}" title="${b.perk || ''}">
+                <span class="t">${b.name}<span class="own" data-own></span></span>
+                <span class="cyc"><i></i></span>
+                <span class="d"><span data-batch></span><small data-state></small></span>
+              </button>
+              <button class="buy" data-buy="${b.id}"><span data-cost></span><small data-cnt></small></button>
+              <button class="mgr" data-mgr="${b.id}"></button>
+            </div>`).join('') + `</div></div>`).join('');
+      bars = [...v.querySelectorAll('.bld')].map(el => ({ id: el.dataset.id, i: el.querySelector('.cyc i') }));
     } else if (tab === 'upg') {
       const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost);
       sig = list.map(u => u.id).join();
@@ -155,7 +161,18 @@
   $('view').addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.mode) { buyMode = t.dataset.mode === 'max' ? 'max' : +t.dataset.mode; render(); return; }
-    if (t.dataset.buy) { E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys); refresh(); return; }
+    if (t.dataset.run) { if (E.runBuilding(S, t.dataset.run)) refresh(); return; }
+    if (t.dataset.buy) {
+      if (E.buy(S, t.dataset.buy, buyCount(t.dataset.buy), freeBuys)) {
+        const row = t.closest('.bld'); replay(row, 'bump'); replay(row.querySelector('.own'), 'tick');
+      }
+      refresh(); return;
+    }
+    if (t.dataset.mgr) {
+      const b = E.BUILDINGS.find(x => x.id === t.dataset.mgr);
+      if (E.buyManager(S, b.id, freeBuys)) { replay(t.closest('.bld'), 'hired'); burst(t); toast(`Manager hired: ${b.name} now runs on its own.`); }
+      refresh(); return;
+    }
     if (t.dataset.upg) { if (E.buyUpgrade(S, t.dataset.upg, freeBuys)) { toast('Upgrade bought.'); render(); } return; }
     if (t.dataset.bean) { E.setBean(S, t.dataset.bean); render(); return; }
     if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy, freeBuys)) { toast('Legacy perk bought.'); save(); render(); } return; }
@@ -221,12 +238,32 @@
 
     const v = $('view');
     if (tab === 'build') {
-      v.querySelectorAll('[data-buy]').forEach(b => {
-        const id = b.dataset.buy, n = buyCount(id), c = E.costOf(S, id, n);
-        b.querySelector('[data-own]').textContent = S.owned[id];
-        b.querySelector('[data-cost]').textContent = fmt(c);
-        b.querySelector('[data-cnt]').textContent = 'buy ' + n;
-        b.disabled = !freeBuys && c > S.cups;
+      const m = E.mods(S);
+      v.querySelectorAll('.bld').forEach(row => {
+        const id = row.dataset.id, b = E.BUILDINGS.find(x => x.id === id);
+        const n = buyCount(id), c = E.costOf(S, id, n), ct = E.cycleTime(S, id, m);
+        const owned = S.owned[id], managed = !!S.managers[id], active = managed || S.running[id];
+        const starved = active && b.stage !== 'farm' && owned > 0 && (S.fill[id] ?? 1) < 0.75;
+        const fast = managed && ct < 0.25;
+        row.querySelector('[data-own]').textContent = owned;
+        let out = E.batch(S, id, m), unit = b.stage === 'farm' ? 'green beans' : 'roasted beans';
+        if (b.stage === 'brew') { out *= b.yield * m.yield; unit = 'cups'; }
+        row.querySelector('[data-batch]').textContent = owned ? `+${fmt(out)} ${unit} every ${secs(ct)}` : `${secs(ct)} cycle`;
+        row.querySelector('[data-state]').textContent = !owned ? 'Buy one to start' : starved ? 'Waiting for beans'
+          : fast ? 'Nonstop' : managed ? 'Managed' : active ? 'Running' : 'Click to run';
+        row.classList.toggle('none', !owned);
+        row.classList.toggle('managed', managed);
+        row.classList.toggle('idle', owned > 0 && !active);
+        row.classList.toggle('starved', starved);
+        row.classList.toggle('fast', fast);
+        row.querySelector('[data-run]').disabled = !owned;
+        const buyBtn = row.querySelector('[data-buy]');
+        buyBtn.querySelector('[data-cost]').textContent = fmt(c);
+        buyBtn.querySelector('[data-cnt]').textContent = 'buy ' + n;
+        buyBtn.disabled = !freeBuys && c > S.cups;
+        const mgr = row.querySelector('[data-mgr]');
+        mgr.textContent = managed ? 'Manager hired' : `Hire manager ${fmt(b.manager)}`;
+        mgr.disabled = managed || (!freeBuys && b.manager > S.cups);
       });
     } else if (tab === 'upg') {
       const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
@@ -268,10 +305,53 @@
   }
 
   // ---------- Game loop ----------
+  // Cycle bars move every frame (refresh only runs 10 times a second).
+  function drawBars() {
+    if (tab !== 'build') return;
+    const m = E.mods(S);
+    for (const { id, i } of bars) {
+      const ct = E.cycleTime(S, id, m), managed = S.managers[id];
+      const f = managed && ct < 0.25 ? 1 : managed || S.running[id] ? Math.min(1, (S.progress[id] || 0) / ct) : 0;
+      i.style.transform = `scaleX(${f})`;
+    }
+  }
+
+  // Bean flow: a bean drops down the pipe when a farm or roaster cycle delivers,
+  // and the cup pulses when a brewer delivers. Throttled so fast cycles don't flood it.
+  const lastBean = {};
+  function beanFlow(done, now) {
+    for (const id in done) {
+      const b = E.BUILDINGS.find(x => x.id === id);
+      if (b.stage !== 'farm' && !(S.fill[id] > 0)) continue;
+      if (now - (lastBean[b.stage] || 0) < 120) continue;
+      lastBean[b.stage] = now;
+      if (b.stage === 'brew') { pulse = Math.max(pulse, 0.6); continue; }
+      const pipe = document.querySelector(`.pipe[data-from="${b.stage}"]`);
+      const d = document.createElement('i');
+      d.className = 'bean'; d.style.left = (40 + Math.random() * 20) + '%';
+      pipe.appendChild(d); setTimeout(() => d.remove(), 600);
+    }
+  }
+
+  // Restart a CSS animation on an element (purchase feedback).
+  function replay(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  // A small burst of sparks from a button (manager hired).
+  function burst(el) {
+    for (let k = 0; k < 12; k++) {
+      const sp = document.createElement('i'), a = k / 12 * Math.PI * 2, r = 28 + Math.random() * 16;
+      sp.className = 'spark';
+      sp.style.setProperty('--dx', Math.cos(a) * r + 'px'); sp.style.setProperty('--dy', Math.sin(a) * r + 'px');
+      el.appendChild(sp); setTimeout(() => sp.remove(), 650);
+    }
+  }
+  const secs = t => t >= 10 ? Math.round(t) + 's' : t >= 1 ? t.toFixed(1) + 's' : t.toFixed(2) + 's';
+
   let last = performance.now(), acc = 0, saveAcc = 0;
   function frame(now) {
     const dt = Math.min(1, (now - last) / 1000); last = now;
-    E.tick(S, dt);
+    const r = E.tick(S, dt);
+    beanFlow(r.done, now);
+    drawBars();
     pulse = Math.max(0, pulse - dt * 3);
     acc += dt; saveAcc += dt;
     if (acc > 0.1) { acc = 0; refresh(); }

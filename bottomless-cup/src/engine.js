@@ -29,6 +29,18 @@ const BUILDINGS = [
     perk: '1.4 yield, +1% offline efficiency each (max +50%).' },
 ];
 
+// Production runs in cycles, like AdVenture Capitalist. Each building type has a fixed cycle
+// time (cheap tiers are quick); owning more makes each batch bigger, not the bar faster.
+// A batch is rate * cycle, so the average output per second matches the rate above.
+const CYCLE_BY_TIER = [1, 3, 6, 12, 24];   // seconds, tier 1..5 within each stage
+const MANAGER_MULT = 20;                    // manager price = building base cost * this
+for (const st of ['farm', 'roast', 'brew']) {
+  BUILDINGS.filter(b => b.stage === st).forEach((b, i) => {
+    b.cycle = CYCLE_BY_TIER[i];
+    b.manager = b.cost * MANAGER_MULT;
+  });
+}
+
 const BEANS = [
   { id: 'arabica',     name: 'Arabica',     stars: 0,   desc: '+10% brew yield. The balanced starter.',
     mods: { yield: 1.10 } },
@@ -56,9 +68,9 @@ const UPGRADES = [
 ];
 for (const b of BUILDINGS) {
   UPGRADES.push({ id: b.id + '_10', name: b.name + ' Tune-up', cost: b.cost * 40, need: { id: b.id, n: 10 },
-    desc: b.name + ' output x2 (needs 10).', mods: { bld: { [b.id]: 2 } } });
+    desc: b.name + ' cycles twice as fast (needs 10).', mods: { speed: { [b.id]: 2 } } });
   UPGRADES.push({ id: b.id + '_25', name: b.name + ' Mastery', cost: b.cost * 400, need: { id: b.id, n: 25 },
-    desc: b.name + ' output x2 (needs 25).', mods: { bld: { [b.id]: 2 } } });
+    desc: b.name + ' cycles twice as fast (needs 25).', mods: { speed: { [b.id]: 2 } } });
 }
 
 // Ascension perks bought with Origin Tokens. max = how many levels.
@@ -69,6 +81,7 @@ const LEGACY = [
   { id: 'nightshift',name: 'Night Shift',         cost: 2, max: 1, desc: 'Offline production 50% -> 100%.' },
   { id: 'starpower', name: 'Star Power',          cost: 2, max: 5, desc: 'Each Reputation Star gives +1% more per level.' },
   { id: 'supply',    name: 'Global Supply Chain', cost: 3, max: 3, desc: 'All production x2 per level.' },
+  { id: 'staff',     name: 'Loyal Staff',         cost: 3, max: 1, desc: 'Managers stay hired when you Open a New Cafe or Go Global.' },
   { id: 'autobuy',   name: 'Operations Manager',  cost: 4, max: 1, desc: 'Auto-buys a building for your bottleneck stage every 2 seconds.' },
 ];
 
@@ -83,6 +96,10 @@ function newRun(state) {
   state.owned = {};
   for (const b of BUILDINGS) state.owned[b.id] = 0;
   state.upgrades = {};
+  state.progress = {};   // seconds into the current cycle, per building
+  state.running = {};    // unmanaged buildings started by a click (run one cycle)
+  state.fill = {};       // share of the last batch a roaster/brewer actually got (1 = full)
+  if (!(state.legacy || {}).staff || !state.managers) state.managers = {};
   if ((state.legacy || {}).headstart) {
     state.owned.bush = 5; state.owned.pan = 5; state.owned.drip = 5;
   }
@@ -101,6 +118,7 @@ function newGame() {
     legacy: {},          // legacy perk levels
     prestiges: 0,
     ascensions: 0,
+    managers: {},        // building id -> true once a manager is hired
     lastSave: Date.now(),
     autoTimer: 0,
   };
@@ -122,11 +140,12 @@ function maxAffordable(s, id) {
 }
 
 // Collect every multiplier from upgrades, bean, prestige and legacy.
+// speed = per-building cycle speed (2 means cycles take half as long).
 function mods(s) {
-  const m = { farm: 1, roast: 1, brew: 1, yield: 1, click: 1, all: 1, clickPct: 0, bld: {} };
+  const m = { farm: 1, roast: 1, brew: 1, yield: 1, click: 1, all: 1, clickPct: 0, speed: {} };
   const apply = src => {
     for (const k in src) {
-      if (k === 'bld') for (const id in src.bld) m.bld[id] = (m.bld[id] || 1) * src.bld[id];
+      if (k === 'speed') for (const id in src.speed) m.speed[id] = (m.speed[id] || 1) * src.speed[id];
       else if (k === 'clickPct') m.clickPct += src[k];
       else m[k] *= src[k];
     }
@@ -142,17 +161,32 @@ function mods(s) {
   return m;
 }
 
-// Capacity per stage, already multiplied. Brewer yield is a capacity-weighted average.
+// Seconds per cycle for a building type, and what one cycle of all its copies handles.
+function cycleTime(s, id, m = mods(s)) { return bld(id).cycle / (m.speed[id] || 1); }
+function batch(s, id, m = mods(s)) {
+  const b = bld(id);
+  return s.owned[id] * b.rate * b.cycle * m[b.stage] * m.all;
+}
+
+// Average capacity per stage (batch / cycle time), already multiplied.
+// Brewer yield is a capacity-weighted average.
+// cupsPerSec only counts managed buildings: that is what runs on its own (and offline).
 function rates(s) {
   const m = mods(s);
   const r = { farm: 0, roast: 0, brew: 0, yieldWeighted: 0 };
+  const auto = { farm: 0, roast: 0, brew: 0, yieldWeighted: 0 };
   for (const b of BUILDINGS) {
-    const out = s.owned[b.id] * b.rate * (m.bld[b.id] || 1) * m[b.stage] * m.all;
+    const out = s.owned[b.id] * b.rate * (m.speed[b.id] || 1) * m[b.stage] * m.all;
     r[b.stage] += out;
     if (b.stage === 'brew') r.yieldWeighted += out * b.yield;
+    if (s.managers[b.id]) {
+      auto[b.stage] += out;
+      if (b.stage === 'brew') auto.yieldWeighted += out * b.yield;
+    }
   }
   r.yield = (r.brew > 0 ? r.yieldWeighted / r.brew : 1) * m.yield;
-  r.cupsPerSec = Math.min(r.farm, r.roast, r.brew) * r.yield; // steady state
+  const autoYield = (auto.brew > 0 ? auto.yieldWeighted / auto.brew : 1) * m.yield;
+  r.cupsPerSec = Math.min(auto.farm, auto.roast, auto.brew) * autoYield; // steady state
   r.bottleneck = r.cupsPerSec === 0 && r.farm + r.roast + r.brew === 0 ? null
     : (r.farm <= r.roast && r.farm <= r.brew ? 'farm' : r.roast <= r.brew ? 'roast' : 'brew');
   r.clickPower = m.click + m.clickPct * r.cupsPerSec;
@@ -161,15 +195,49 @@ function rates(s) {
 
 function addCups(s, n) { s.cups += n; s.runCups += n; s.lifetimeCups += n; }
 
-// Advance the simulation by dt seconds.
+// A building finished `n` cycles. Farms make green beans; roasters and brewers take
+// whatever their input stockpile has, up to a full batch each.
+function finishCycles(s, b, n, m) {
+  const want = batch(s, b.id, m) * n;
+  if (b.stage === 'farm') { s.green += want; return; }
+  const from = b.stage === 'roast' ? 'green' : 'roasted';
+  const used = Math.min(s[from], want);
+  s[from] -= used;
+  s.fill[b.id] = want > 0 ? used / want : 1;
+  if (b.stage === 'roast') s.roasted += used;
+  else addCups(s, used * b.yield * m.yield);
+}
+
+// Click an unmanaged building to run one cycle.
+function runBuilding(s, id) {
+  if (!s.owned[id] || s.managers[id] || s.running[id]) return false;
+  s.running[id] = true; s.progress[id] = 0; return true;
+}
+
+function buyManager(s, id, free = false) {
+  const b = bld(id);
+  if (!b || s.managers[id] || (!free && s.cups < b.manager)) return false;
+  if (!free) s.cups -= b.manager;
+  s.managers[id] = true; s.running[id] = false; return true;
+}
+
+// Advance the simulation by dt seconds. Buildings run in list order: farms, roasters, brewers.
+// Returns rates plus `done`: building id -> cycles finished this tick (the UI animates these).
 function tick(s, dt) {
-  const r = rates(s);
-  s.green += r.farm * dt;
-  const roasted = Math.min(s.green, r.roast * dt);
-  s.green -= roasted; s.roasted += roasted;
-  const brewed = Math.min(s.roasted, r.brew * dt);
-  s.roasted -= brewed;
-  addCups(s, brewed * r.yield);
+  const r = rates(s), m = mods(s);
+  r.done = {};
+  for (const b of BUILDINGS) {
+    const id = b.id, managed = s.managers[id];
+    if (!s.owned[id] || (!managed && !s.running[id])) continue;
+    const ct = cycleTime(s, id, m);
+    s.progress[id] = (s.progress[id] || 0) + dt;
+    let n = Math.floor(s.progress[id] / ct);
+    if (n < 1) continue;
+    if (managed) s.progress[id] -= n * ct;
+    else { n = 1; s.running[id] = false; s.progress[id] = 0; }
+    finishCycles(s, b, n, m);
+    r.done[id] = n;
+  }
   // Operations Manager legacy perk
   if (s.legacy.autobuy) {
     s.autoTimer += dt;
@@ -269,7 +337,8 @@ function fmt(n) {
 
 const Engine = {
   GROWTH, BUILDINGS, BEANS, UPGRADES, LEGACY, PRESTIGE_MIN, ASCEND_MIN,
-  newGame, newRun, costOf, maxAffordable, mods, rates, tick, click, buy, upgradeAvailable, buyUpgrade,
+  newGame, newRun, costOf, maxAffordable, mods, cycleTime, batch, rates, tick, click, buy, runBuilding, buyManager,
+  upgradeAvailable, buyUpgrade,
   setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt,
 };
 if (typeof module !== 'undefined') module.exports = Engine;
