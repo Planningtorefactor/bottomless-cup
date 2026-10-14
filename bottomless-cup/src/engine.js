@@ -475,7 +475,11 @@ function buyStarUpgrade(s, id, free = false) {
   s.starUpgrades[id] = true; return true;
 }
 
-function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
+// free = testing mode: picking a locked bean unlocks it.
+function setBean(s, id, free = false) {
+  if (free && BEANS.some(b => b.id === id)) s.beansUnlocked[id] = true;
+  if (s.beansUnlocked[id]) s.bean = id;
+}
 
 // ---- Prestige: Sell the Business ----
 // Money earned this run needed to sell: 1M, 2M, 4M... resets when you Go Global.

@@ -178,13 +178,13 @@
             </button>`).join('') + `</div></div>` : '';
         }).join('') : stars.length ? '' : `<p class="empty">Nothing new yet. Keep growing.</p>`);
     } else if (tab === 'beans') {
-      v.innerHTML = `<div class="toolbar"><p>Choose which variety your farms grow. Swap any time. New beans unlock from Reputation Stars earned.</p></div><div class="list">` +
+      v.innerHTML = `<div class="toolbar"><p>Choose which variety your farms grow. Swap any time. New beans unlock from Reputation Stars earned.</p>${freeBtn()}</div><div class="list">` +
         E.BEANS.map(b => {
-          const open = S.beansUnlocked[b.id];
-          return `<button class="item${S.bean === b.id ? ' sel' : ''}" data-bean="${b.id}" ${open ? '' : 'disabled'}>
-            <span class="t">${open ? b.name : 'Locked variety'}</span>
-            <span class="p">${S.bean === b.id ? 'Growing' : open ? 'Grow' : `<small>needs</small>${b.stars} stars`}</span>
-            <span class="d">${open ? b.desc : 'Earn more Reputation Stars to unlock.'}</span></button>`;
+          const open = S.beansUnlocked[b.id], show = open || freeBuys;
+          return `<button class="item${S.bean === b.id ? ' sel' : ''}" data-bean="${b.id}" ${show ? '' : 'disabled'}>
+            <span class="t">${show ? b.name : 'Locked variety'}</span>
+            <span class="p">${S.bean === b.id ? 'Growing' : open ? 'Grow' : freeBuys ? '<small>free</small>Unlock' : `<small>needs</small>${b.stars} stars`}</span>
+            <span class="d">${show ? b.desc : 'Earn more Reputation Stars to unlock.'}</span></button>`;
         }).join('') + `</div>`;
     } else if (tab === 'sell') {
       v.innerHTML = `<div class="toolbar"><p>Prestige: sell the business and start over with a better reputation.</p></div>
@@ -260,7 +260,7 @@
       if (E.buyStarUpgrade(S, u.id, freeBuys)) { burst(t); toast(`${u.name} bought. ${u.desc}`); save(); render(); }
       return;
     }
-    if (t.dataset.bean) { E.setBean(S, t.dataset.bean); render(); return; }
+    if (t.dataset.bean) { E.setBean(S, t.dataset.bean, freeBuys); render(); return; }
     if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy, freeBuys)) { toast('Legacy perk bought.'); save(); render(); } return; }
     const a = t.dataset.act;
     if (a === 'free') { freeBuys = !freeBuys; toast(freeBuys ? 'Free buying on (testing).' : 'Free buying off.'); render(); return; }
@@ -510,13 +510,15 @@
 
   // ---------- Dev helpers (open DevTools console: Ctrl+Shift+I) ----------
   // BC.give(1e6) adds money, BC.skip(3600) fast-forwards an hour, BC.state() shows the save.
-  // BC.free() toggles free buying (same as the button on the Buildings, Expansion, Upgrades and Go Global tabs; also makes Star upgrades free).
+  // BC.free() toggles free buying (same as the button on the Buildings, Expansion, Upgrades, Beans and Go Global tabs; also makes Star upgrades free).
+  // BC.beans() unlocks every bean variety.
   window.BC = {
     state: () => S,
     give: n => { S.money += n; S.runMoney += n; S.lifetimeMoney += n; render(); },
     skip: secs => { for (let i = 0; i < secs; i++) E.tick(S, 1); render(); },
     stars: n => { S.stars += n; S.starsEarned += n; E.BEANS.forEach(b => { if (S.starsEarned >= b.stars) S.beansUnlocked[b.id] = true; }); render(); },
     tokens: n => { S.tokens += n; render(); },
+    beans: () => { E.BEANS.forEach(b => { S.beansUnlocked[b.id] = true; }); render(); },
     free: (on = !freeBuys) => { freeBuys = on; render(); return freeBuys; },
   };
 
