@@ -1,5 +1,5 @@
 <title>Bottomless Cup</title>
-<meta name="description" content="An idle coffee empire: grow, roast, brew, prestige, ascend.">
+<meta name="description" content="An idle coffee empire: grow, roast, bag and truck your coffee, then build your own distribution and coffee shops.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
@@ -79,9 +79,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .stage .name span { display: block; font-weight: 400; color: var(--muted); font-size: .74rem; }
 .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; border-radius: 4px; transition: width .25s; }
-.stage[data-k="farm"] .bar i { background: var(--green); }
+.stage[data-k="grow"] .bar i { background: var(--green); }
 .stage[data-k="roast"] .bar i { background: var(--roast); }
-.stage[data-k="brew"] .bar i { background: var(--crema); }
+.stage[data-k="pack"] .bar i { background: var(--crema); }
+.stage[data-k="ship"] .bar i { background: var(--ink); }
 .stage .cap { font-size: .8rem; text-align: right; min-width: 92px; }
 .stage .stock { grid-column: 2 / 4; font-size: .74rem; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
 .badge { font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--warn); border: 1px solid currentColor; padding: 1px 6px; border-radius: 99px; }
@@ -91,8 +92,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .pipe { position: relative; height: 22px; }
 .pipe::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--line); }
 .bean { position: absolute; top: 0; width: 8px; height: 6px; border-radius: 50%; pointer-events: none; animation: drop .55s ease-in forwards; }
-.pipe[data-from="farm"] .bean { background: var(--green); }
+.pipe[data-from="grow"] .bean { background: var(--green); }
 .pipe[data-from="roast"] .bean { background: var(--roast); }
+.pipe[data-from="pack"] .bean { background: var(--crema); border-radius: 2px; width: 7px; height: 9px; }
 @keyframes drop { from { transform: translate(-50%, -6px); opacity: 0; } 25% { opacity: 1; } to { transform: translate(-50%, 20px); opacity: 0; } }
 
 /* Shop */
@@ -138,7 +140,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 .bld .d small { font-size: inherit; }
 .cyc { display: block; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
 .cyc i { display: block; height: 100%; background: var(--c); transform-origin: left; transform: scaleX(0); }
-.bld.fast .cyc i { background-image: repeating-linear-gradient(45deg, rgb(255 255 255 / .28) 0 6px, transparent 6px 12px); background-size: 17px 17px; animation: flow .6s linear infinite; }
+.bld.road .cyc i, .bld.fast .cyc i { background-image: repeating-linear-gradient(45deg, rgb(255 255 255 / .28) 0 6px, transparent 6px 12px); background-size: 17px 17px; animation: flow .6s linear infinite; }
 @keyframes flow { to { background-position: 17px 0; } }
 .bld .run[disabled] { color: inherit; }
 .bld.managed [data-state] { color: var(--ok); }
@@ -163,7 +165,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--crema)
 @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .bean, .spark { display: none; }
-  .bld.bump, .bld.hired, .own.tick, .bld.idle [data-state], .bld.fast .cyc i { animation: none; }
+  .bld.bump, .bld.hired, .own.tick, .bld.idle [data-state], .bld.fast .cyc i, .bld.road .cyc i { animation: none; }
 }
 .empty { color: var(--muted); font-size: .88rem; padding: 12px 0; }
 
@@ -185,7 +187,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
 <div class="wrap">
   <header class="top">
     <div>
-      <div class="brand">BOTTOMLESS CUP<small>Prototype build · balance values from the design doc</small></div>
+      <div class="brand">BOTTOMLESS CUP<small>Prototype build · grow, roast, bag and ship coffee</small></div>
       <div class="meta" style="margin-top:8px">
         <span>Stars <b class="num" id="m-stars">0</b></span>
         <span>Tokens <b class="num" id="m-tokens">0</b></span>
@@ -193,15 +195,15 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
       </div>
     </div>
     <div class="score">
-      <div><span class="big" id="cups">0</span><span class="unit">cups</span></div>
-      <div class="rate"><span class="num" id="cps">0</span> per second from managers · <span class="num" id="runcups">0</span> brewed this run</div>
+      <div><span class="big" id="money">$0</span></div>
+      <div class="rate"><span class="num" id="mps">$0</span> per second from managers · <span class="num" id="runmoney">$0</span> earned this run</div>
     </div>
   </header>
 
   <div class="grid">
     <section class="counter" aria-label="Brew counter">
       <div>
-        <button class="cupbtn" id="brew" aria-label="Hand brew a cup">
+        <button class="cupbtn" id="brew" aria-label="Sell a cup by hand">
           <svg viewBox="0 0 220 190" aria-hidden="true">
             <defs><clipPath id="cupclip"><path d="M40 52 H170 L160 150 Q158 168 140 168 H70 Q52 168 50 150 Z"/></clipPath></defs>
             <path id="steam" d="M80 40 q-8 -14 0 -26 M105 40 q-8 -14 0 -26 M130 40 q-8 -14 0 -26" fill="none" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
@@ -215,18 +217,20 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
             <ellipse cx="105" cy="178" rx="78" ry="8" fill="none" stroke="var(--ink)" stroke-width="4"/>
           </svg>
         </button>
-        <div class="cuplabel">Click to hand brew · <b class="num" id="clickpow">1</b> cups per click</div>
+        <div class="cuplabel">Click to sell a cup by hand · <b class="num" id="clickpow">$1</b> per click</div>
         <button class="goal" id="goal"></button>
       </div>
 
       <div class="chain">
         <h3>Supply chain</h3>
-        <div class="stage" data-k="farm"><div class="name">Farms<span>green beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
-        <div class="pipe" data-from="farm" aria-hidden="true"></div>
-        <div class="stage" data-k="roast"><div class="name">Roasters<span>roasted beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>stockpile <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="stage" data-k="grow"><div class="name">Farms<span>green beans</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>waiting to roast <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="pipe" data-from="grow" aria-hidden="true"></div>
+        <div class="stage" data-k="roast"><div class="name">Roasters<span>roasted coffee</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>waiting to pack <b class="num">0</b></span><span class="flag"></span></div></div>
         <div class="pipe" data-from="roast" aria-hidden="true"></div>
-        <div class="stage" data-k="brew"><div class="name">Brewers<span>cups</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>capacity in roasted beans/s</span><span class="flag"></span></div></div>
-        <div class="yieldline"><span>Brew yield</span><span class="num" id="yield">1.00 cups per roasted bean</span></div>
+        <div class="stage" data-k="pack"><div class="name">Packing<span>bags</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>bags waiting for a truck <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="pipe" data-from="pack" aria-hidden="true"></div>
+        <div class="stage" data-k="ship"><div class="name">Trucks<span>if sent full</span></div><div class="bar"><i></i></div><div class="cap num">0/s</div><div class="stock"><span>on the road <b class="num">0</b></span><span class="flag"></span></div></div>
+        <div class="yieldline"><span>Prices</span><span class="num" id="prices">$1.75 per lb</span></div>
       </div>
     </section>
 
@@ -236,7 +240,7 @@ textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: .
         <button class="tab" role="tab" data-tab="expand" aria-selected="false">Expansion<span class="dot" id="expdot" hidden></span></button>
         <button class="tab" role="tab" data-tab="upg" aria-selected="false">Upgrades<span class="dot" id="upgdot" hidden></span></button>
         <button class="tab" role="tab" data-tab="beans" aria-selected="false">Beans</button>
-        <button class="tab" role="tab" data-tab="cafe" aria-selected="false">New Café</button>
+        <button class="tab" role="tab" data-tab="sell" aria-selected="false">Sell</button>
         <button class="tab" role="tab" data-tab="global" aria-selected="false">Go Global</button>
         <button class="tab" role="tab" data-tab="save" aria-selected="false">Save</button>
       </div>

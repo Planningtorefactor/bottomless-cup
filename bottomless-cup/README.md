@@ -1,11 +1,14 @@
 # Bottomless Cup (prototype)
 
-An idle coffee game: farms grow green beans, roasters roast them, brewers turn them into cups.
-Prestige = **Open a New Café** (Reputation Stars). Ascension = **Go Global** (Origin Tokens, Legacy perks).
+An idle coffee game: plant coffee on your farms (250 plants each), roast it, pack it into bags
+(8 oz up to 50 lb sacks; bigger bags pack faster), and load it onto trucks that drive it to the buyer. Send a truck when it's full,
+or early if you want the money sooner. Grow into your own distribution network. Prestige = **Sell the Business**
+(Reputation Stars). Ascension = **Go Global** (Origin Tokens, Legacy perks); the first one opens **coffee shops**,
+which brew your coffee into cups that sell for more.
 
 Buildings produce in **cycles** (each type has its own timer bar; owning more makes each batch bigger).
 Click a building to run one cycle, or hire its **manager** so it runs on its own (and offline).
-Managers reset on a New Café unless you own the **Loyal Staff** Legacy perk.
+Bigger farms, trucks and shops unlock in the **Expansion** tab.
 
 ## Folder layout
 
@@ -56,10 +59,10 @@ npm run start:nosandbox
 
 - **Change balance:** edit numbers in `src/engine.js`, then `npm start` (or `node tools/build.js`
   and refresh the browser).
-- **Check pacing without playing:** `node tools/simulate.js` prints when a bot hits 1K/1M cups,
+- **Check pacing without playing:** `node tools/simulate.js` prints when a bot hits $1K/$1M,
   each prestige, and the first ascension.
 - **Cheats for testing:** press `Ctrl+Shift+I` to open DevTools, go to Console, and type:
-  - `BC.give(1e6)` add a million cups
+  - `BC.give(1e6)` add a million dollars
   - `BC.skip(3600)` fast-forward one hour of production
   - `BC.stars(1000)` add Reputation Stars (unlocks beans, enables Go Global)
   - `BC.tokens(10)` add Origin Tokens for Legacy perks
