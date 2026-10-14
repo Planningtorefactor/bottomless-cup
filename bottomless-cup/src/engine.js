@@ -139,6 +139,19 @@ for (const b of BUILDINGS) {
     desc: `${b.name} ${what} (needs ${n2}).`, mods: { speed: { [b.id]: 2 } } });
 }
 
+// One-time upgrades bought with Reputation Stars. They survive selling the business but
+// reset when you Go Global. A spent Star stops adding its production bonus, so each one is a trade.
+const STAR_UPGRADES = [
+  { id: 'celebrity', name: 'Local Celebrity',     stars: 5,   desc: 'Click power x5.',        mods: { click: 5 } },
+  { id: 'regulars',  name: 'Loyal Regulars',      stars: 10,  desc: 'Prices x1.5.',           mods: { price: 1.5 } },
+  { id: 'growers',   name: 'Expert Growers',      stars: 20,  desc: 'Farms x2.',              mods: { grow: 2 } },
+  { id: 'roastmstr', name: 'Master Roaster',      stars: 20,  desc: 'Roasters x2.',           mods: { roast: 2 } },
+  { id: 'packpros',  name: 'Packing Pros',        stars: 20,  desc: 'Packing x2.',            mods: { pack: 2 } },
+  { id: 'fleet',     name: 'Fleet Deal',          stars: 20,  desc: 'Trucks carry x2.',       mods: { ship: 2 } },
+  { id: 'award',     name: 'Award-Winning Roast', stars: 75,  desc: 'All production x2.',     mods: { all: 2 } },
+  { id: 'royalty',   name: 'Coffee Royalty',      stars: 300, desc: 'All production x3.',     mods: { all: 3 } },
+];
+
 // Ascension perks bought with Origin Tokens. max = how many levels.
 const LEGACY = [
   { id: 'headstart', name: 'Head Start',          cost: 1, max: 1, desc: 'Every run starts with 25 plants, 3 Home Roasters and 3 Packing Tables.' },
@@ -188,6 +201,7 @@ function newGame() {
     lifetimeMoney: 0,
     stars: 0,            // Reputation Stars held (reset on ascension)
     starsEarned: 0,      // total earned this ascension, unlocks beans
+    starUpgrades: {},    // Star upgrades bought (reset on ascension)
     bean: 'arabica',
     beansUnlocked: { arabica: true },
     tokens: 0,           // unspent Origin Tokens
@@ -278,6 +292,7 @@ function mods(s) {
     }
   };
   for (const u of UPGRADES) if (s.upgrades[u.id]) apply(u.mods);
+  for (const u of STAR_UPGRADES) if (s.starUpgrades[u.id]) apply(u.mods);
   apply(BEANS.find(b => b.id === s.bean).mods);
   for (const d of DISTRIBUTION) if (s.dist[d.id]) m.lbPrice *= d.price;
   const L = s.legacy;
@@ -449,6 +464,17 @@ function buyUpgrade(s, id, free = false) {
   s.upgrades[id] = true; return true;
 }
 
+function canBuyStarUpgrade(s, id, free = false) {
+  const u = STAR_UPGRADES.find(x => x.id === id);
+  return !!u && !s.starUpgrades[id] && (free || s.stars >= u.stars);
+}
+
+function buyStarUpgrade(s, id, free = false) {
+  if (!canBuyStarUpgrade(s, id, free)) return false;
+  if (!free) s.stars -= STAR_UPGRADES.find(x => x.id === id).stars;
+  s.starUpgrades[id] = true; return true;
+}
+
 function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
 
 // ---- Prestige: Sell the Business ----
@@ -472,7 +498,7 @@ function ascend(s) {
   const gain = pendingTokens(s);
   if (gain <= 0) return 0;
   s.tokens += gain; s.ascensions++;
-  s.stars = 0; s.starsEarned = 0; s.sales = 0;
+  s.stars = 0; s.starsEarned = 0; s.sales = 0; s.starUpgrades = {};
   if (!s.legacy.vault) { s.beansUnlocked = { arabica: true }; s.bean = 'arabica'; }
   newRun(s);
   return gain;
@@ -512,11 +538,12 @@ function fmt(n) {
 const money = n => '$' + (n > 0 && n < 10 && n % 1 ? n.toFixed(2) : fmt(n));
 
 const Engine = {
-  GROWTH, FARM_SIZE, BUILDINGS, STAGE_ORDER, BAGS, DISTRIBUTION, BEANS, UPGRADES, LEGACY,
+  GROWTH, FARM_SIZE, BUILDINGS, STAGE_ORDER, BAGS, DISTRIBUTION, BEANS, UPGRADES, STAR_UPGRADES, LEGACY,
   PRESTIGE_MIN, ASCEND_MIN, UNLOCK_NEED, CUPS_PER_LB,
   newGame, newRun, shopsOpen, isUnlocked, canUnlock, unlock, bagLb, nextBag, canBuyBag, buyBag,
   canBuyDist, buyDist, room, prestigeCost, costOf, maxAffordable, mods, cycleTime, batch, capacity,
   lbPrice, cupPrice, rates, tick, click, buy, runBuilding, sendTruck, buyManager, upgradeAvailable, buyUpgrade,
+  canBuyStarUpgrade, buyStarUpgrade,
   setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt, money,
 };
 if (typeof module !== 'undefined') module.exports = Engine;

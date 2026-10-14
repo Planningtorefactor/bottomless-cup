@@ -392,6 +392,19 @@ for (const b of BUILDINGS) {
     desc: `${b.name} ${what} (needs ${n2}).`, mods: { speed: { [b.id]: 2 } } });
 }
 
+// One-time upgrades bought with Reputation Stars. They survive selling the business but
+// reset when you Go Global. A spent Star stops adding its production bonus, so each one is a trade.
+const STAR_UPGRADES = [
+  { id: 'celebrity', name: 'Local Celebrity',     stars: 5,   desc: 'Click power x5.',        mods: { click: 5 } },
+  { id: 'regulars',  name: 'Loyal Regulars',      stars: 10,  desc: 'Prices x1.5.',           mods: { price: 1.5 } },
+  { id: 'growers',   name: 'Expert Growers',      stars: 20,  desc: 'Farms x2.',              mods: { grow: 2 } },
+  { id: 'roastmstr', name: 'Master Roaster',      stars: 20,  desc: 'Roasters x2.',           mods: { roast: 2 } },
+  { id: 'packpros',  name: 'Packing Pros',        stars: 20,  desc: 'Packing x2.',            mods: { pack: 2 } },
+  { id: 'fleet',     name: 'Fleet Deal',          stars: 20,  desc: 'Trucks carry x2.',       mods: { ship: 2 } },
+  { id: 'award',     name: 'Award-Winning Roast', stars: 75,  desc: 'All production x2.',     mods: { all: 2 } },
+  { id: 'royalty',   name: 'Coffee Royalty',      stars: 300, desc: 'All production x3.',     mods: { all: 3 } },
+];
+
 // Ascension perks bought with Origin Tokens. max = how many levels.
 const LEGACY = [
   { id: 'headstart', name: 'Head Start',          cost: 1, max: 1, desc: 'Every run starts with 25 plants, 3 Home Roasters and 3 Packing Tables.' },
@@ -441,6 +454,7 @@ function newGame() {
     lifetimeMoney: 0,
     stars: 0,            // Reputation Stars held (reset on ascension)
     starsEarned: 0,      // total earned this ascension, unlocks beans
+    starUpgrades: {},    // Star upgrades bought (reset on ascension)
     bean: 'arabica',
     beansUnlocked: { arabica: true },
     tokens: 0,           // unspent Origin Tokens
@@ -531,6 +545,7 @@ function mods(s) {
     }
   };
   for (const u of UPGRADES) if (s.upgrades[u.id]) apply(u.mods);
+  for (const u of STAR_UPGRADES) if (s.starUpgrades[u.id]) apply(u.mods);
   apply(BEANS.find(b => b.id === s.bean).mods);
   for (const d of DISTRIBUTION) if (s.dist[d.id]) m.lbPrice *= d.price;
   const L = s.legacy;
@@ -702,6 +717,17 @@ function buyUpgrade(s, id, free = false) {
   s.upgrades[id] = true; return true;
 }
 
+function canBuyStarUpgrade(s, id, free = false) {
+  const u = STAR_UPGRADES.find(x => x.id === id);
+  return !!u && !s.starUpgrades[id] && (free || s.stars >= u.stars);
+}
+
+function buyStarUpgrade(s, id, free = false) {
+  if (!canBuyStarUpgrade(s, id, free)) return false;
+  if (!free) s.stars -= STAR_UPGRADES.find(x => x.id === id).stars;
+  s.starUpgrades[id] = true; return true;
+}
+
 function setBean(s, id) { if (s.beansUnlocked[id]) s.bean = id; }
 
 // ---- Prestige: Sell the Business ----
@@ -725,7 +751,7 @@ function ascend(s) {
   const gain = pendingTokens(s);
   if (gain <= 0) return 0;
   s.tokens += gain; s.ascensions++;
-  s.stars = 0; s.starsEarned = 0; s.sales = 0;
+  s.stars = 0; s.starsEarned = 0; s.sales = 0; s.starUpgrades = {};
   if (!s.legacy.vault) { s.beansUnlocked = { arabica: true }; s.bean = 'arabica'; }
   newRun(s);
   return gain;
@@ -765,11 +791,12 @@ function fmt(n) {
 const money = n => '$' + (n > 0 && n < 10 && n % 1 ? n.toFixed(2) : fmt(n));
 
 const Engine = {
-  GROWTH, FARM_SIZE, BUILDINGS, STAGE_ORDER, BAGS, DISTRIBUTION, BEANS, UPGRADES, LEGACY,
+  GROWTH, FARM_SIZE, BUILDINGS, STAGE_ORDER, BAGS, DISTRIBUTION, BEANS, UPGRADES, STAR_UPGRADES, LEGACY,
   PRESTIGE_MIN, ASCEND_MIN, UNLOCK_NEED, CUPS_PER_LB,
   newGame, newRun, shopsOpen, isUnlocked, canUnlock, unlock, bagLb, nextBag, canBuyBag, buyBag,
   canBuyDist, buyDist, room, prestigeCost, costOf, maxAffordable, mods, cycleTime, batch, capacity,
   lbPrice, cupPrice, rates, tick, click, buy, runBuilding, sendTruck, buyManager, upgradeAvailable, buyUpgrade,
+  canBuyStarUpgrade, buyStarUpgrade,
   setBean, pendingStars, prestige, pendingTokens, ascend, buyLegacy, offlineEfficiency, applyOffline, fmt, money,
 };
 if (typeof module !== 'undefined') module.exports = Engine;
@@ -880,6 +907,10 @@ if (typeof module !== 'undefined') module.exports = Engine;
       <span>Next: <b>${b.name}</b> · unlock in Expansion</span><small data-next-txt></small></button>` : '';
   }
 
+  // Star upgrades appear once you have sold a business at least once.
+  const starList = () => S.starsEarned > 0 || freeBuys ? E.STAR_UPGRADES.filter(u => !S.starUpgrades[u.id]) : [];
+  const upgSig = () => E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).map(u => u.id).join() + '|' + starList().map(u => u.id).join();
+
   function buyCount(id) {
     if (buyMode === 'max') return Math.max(1, E.maxAffordable(S, id));
     return Math.max(1, Math.min(buyMode, E.room(S, id)));
@@ -931,8 +962,17 @@ if (typeof module !== 'undefined') module.exports = Engine;
       sig = unlockSig();
     } else if (tab === 'upg') {
       const list = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost);
-      sig = list.map(u => u.id).join();
+      const stars = starList();
+      sig = upgSig();
       v.innerHTML = `<div class="toolbar"><p>One-time purchases. New ones appear as you grow.</p>${freeBtn()}</div>` +
+        (stars.length ? `<div class="group" style="--c:var(--crema)"><h4>Reputation · <span class="num" data-stars></span> Stars</h4>
+          <p class="empty">Bought with Stars. They stay when you sell the business and reset when you Go Global. Each Star you spend stops giving its <b data-perstar></b> production bonus.</p>
+          <div class="list">` + stars.map(u => `
+            <button class="item" data-star="${u.id}">
+              <span class="t">${u.name}</span>
+              <span class="p">${fmt(u.stars)} Stars</span>
+              <span class="d">${u.desc}</span>
+            </button>`).join('') + `</div></div>` : '') +
         (list.length ? UPG_GROUPS.map(g => {
           const here = list.filter(u => u.group === g.k);
           return here.length ? `<div class="group" style="--c:${g.c}"><h4>${g.title}</h4><div class="list">` + here.map(u => `
@@ -941,7 +981,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
               <span class="p" data-cost>${money(u.cost)}</span>
               <span class="d">${u.desc}</span>
             </button>`).join('') + `</div></div>` : '';
-        }).join('') : `<p class="empty">Nothing new yet. Keep growing.</p>`);
+        }).join('') : stars.length ? '' : `<p class="empty">Nothing new yet. Keep growing.</p>`);
     } else if (tab === 'beans') {
       v.innerHTML = `<div class="toolbar"><p>Choose which variety your farms grow. Swap any time. New beans unlock from Reputation Stars earned.</p></div><div class="list">` +
         E.BEANS.map(b => {
@@ -956,7 +996,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
         <div class="panel">
           <h3>Sell the Business</h3>
           <p>Needs <b class="num">${money(E.prestigeCost(S))}</b> earned this run. Each sale needs twice as much as the last, until you Go Global.</p>
-          <p>Resets money, plants, roasters, packers, trucks, bag size, unlocks, distribution, managers and upgrades. Keeps Stars, bean varieties and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
+          <p>Resets money, plants, roasters, packers, trucks, bag size, unlocks, distribution, managers and upgrades. Keeps Stars, Star upgrades, bean varieties and Legacy perks. Each Star adds <b data-perstar></b> to all production.</p>
           <div class="stat num" data-pending>0<small>Stars on sale</small></div>
           <p data-need></p>
           <div class="row"><button class="act" data-act="sell"></button><button class="ghost" data-act="cancel" hidden>Keep growing</button></div>
@@ -966,7 +1006,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
       v.innerHTML = `<div class="toolbar"><p>Ascension: trade every Star for Origin Tokens.</p>${freeBtn()}</div>
         <div class="panel">
           <h3>Go Global</h3>
-          <p>${E.shopsOpen(S) ? '' : '<b>Your first Go Global opens coffee shops.</b> '}Resets your run and all Reputation Stars${S.legacy.vault ? '' : ' and bean varieties'}. Origin Tokens buy permanent Legacy perks below.</p>
+          <p>${E.shopsOpen(S) ? '' : '<b>Your first Go Global opens coffee shops.</b> '}Resets your run, Reputation Stars${S.legacy.vault ? ' and' : ','} Star upgrades${S.legacy.vault ? '' : ' and bean varieties'}. Origin Tokens buy permanent Legacy perks below.</p>
           <div class="stat num" data-pending>0<small>Tokens on reset</small></div>
           <p data-need></p>
           <div class="row"><button class="act" data-act="global"></button><button class="ghost" data-act="cancel" hidden>Not yet</button></div>
@@ -1020,6 +1060,11 @@ if (typeof module !== 'undefined') module.exports = Engine;
       refresh(); return;
     }
     if (t.dataset.upg) { if (E.buyUpgrade(S, t.dataset.upg, freeBuys)) { toast('Upgrade bought.'); render(); } return; }
+    if (t.dataset.star) {
+      const u = E.STAR_UPGRADES.find(x => x.id === t.dataset.star);
+      if (E.buyStarUpgrade(S, u.id, freeBuys)) { burst(t); toast(`${u.name} bought. ${u.desc}`); save(); render(); }
+      return;
+    }
     if (t.dataset.bean) { E.setBean(S, t.dataset.bean); render(); return; }
     if (t.dataset.legacy) { if (E.buyLegacy(S, t.dataset.legacy, freeBuys)) { toast('Legacy perk bought.'); save(); render(); } return; }
     const a = t.dataset.act;
@@ -1159,9 +1204,11 @@ if (typeof module !== 'undefined') module.exports = Engine;
         btn.disabled = !!have || !E.canBuyDist(S, d.id, freeBuys);
       });
     } else if (tab === 'upg') {
-      const now = E.UPGRADES.filter(u => E.upgradeAvailable(S, u, freeBuys)).sort((a, b) => a.cost - b.cost).map(u => u.id).join();
-      if (now !== sig) return render();
+      if (upgSig() !== sig) return render();
       v.querySelectorAll('[data-upg]').forEach(b => { b.disabled = !freeBuys && E.UPGRADES.find(u => u.id === b.dataset.upg).cost > S.money; });
+      v.querySelectorAll('[data-star]').forEach(b => { b.disabled = !E.canBuyStarUpgrade(S, b.dataset.star, freeBuys); });
+      const st = v.querySelector('[data-stars]'); if (st) st.textContent = fmt(S.stars);
+      const ps = v.querySelector('[data-perstar]'); if (ps) ps.textContent = (2 + (S.legacy.starpower || 0)) + '%';
     } else if (tab === 'sell') {
       const p = E.pendingStars(S);
       const perStar = 2 + (S.legacy.starpower || 0);
@@ -1194,7 +1241,8 @@ if (typeof module !== 'undefined') module.exports = Engine;
       });
     }
     // dots on tabs when something there is affordable
-    $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u, freeBuys) && (freeBuys || u.cost <= S.money));
+    $('upgdot').hidden = !E.UPGRADES.some(u => E.upgradeAvailable(S, u, freeBuys) && (freeBuys || u.cost <= S.money))
+      && !starList().some(u => E.canBuyStarUpgrade(S, u.id, freeBuys));
     $('expdot').hidden = !E.BUILDINGS.some(b => E.canUnlock(S, b.id, freeBuys)) && !E.DISTRIBUTION.some(d => E.canBuyDist(S, d.id, freeBuys)) && !E.canBuyBag(S, freeBuys);
   }
 
@@ -1267,7 +1315,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
 
   // ---------- Dev helpers (open DevTools console: Ctrl+Shift+I) ----------
   // BC.give(1e6) adds money, BC.skip(3600) fast-forwards an hour, BC.state() shows the save.
-  // BC.free() toggles free buying (same as the button on the Buildings, Expansion, Upgrades and Go Global tabs).
+  // BC.free() toggles free buying (same as the button on the Buildings, Expansion, Upgrades and Go Global tabs; also makes Star upgrades free).
   window.BC = {
     state: () => S,
     give: n => { S.money += n; S.runMoney += n; S.lifetimeMoney += n; render(); },
