@@ -23,7 +23,7 @@ const BUILDINGS = [
   { id: 'shoproast',  stage: 'roast', name: 'Shop Roaster',       cost: 180,    rate: 5 },
   { id: 'drum',       stage: 'roast', name: 'Drum Roaster',       cost: 2200,   rate: 36 },
   { id: 'industrial', stage: 'roast', name: 'Industrial Roaster', cost: 300000, rate: 1900 },
-  // Packing: fill bags with roasted coffee. Rate = lb per second each; bigger bags make cycles faster.
+  // Packing: fill bags with roasted coffee. Rate = lb per second each; bigger bags pack more per cycle.
   { id: 'table',      stage: 'pack',  name: 'Packing Table',      cost: 10,     rate: 0.5 },
   { id: 'bagger',     stage: 'pack',  name: 'Bagging Machine',    cost: 400,    rate: 6 },
   { id: 'autoline',   stage: 'pack',  name: 'Automated Line',     cost: 20000,  rate: 120 },
@@ -51,14 +51,15 @@ const CUPS_PER_LB = 16;   // cups a shop brews from one lb (before its yield bon
 const CUP_PRICE = 0.25;   // money per cup sold in your shops
 
 // Bag sizes, bought in order in the Expansion tab. Filling one big sack is quicker than filling
-// lots of small bags, so each size makes every packer's cycle faster (speed 2 = half the time).
+// lots of small bags, so each size makes every packer handle more per cycle (output 2 = twice the lb).
+// The cycle time itself stays the same, so packing keeps its pace relative to farms and roasters.
 const BAGS = [
-  { name: '8 oz bag',   lb: 0.5, speed: 1,    cost: 0 },
-  { name: '1 lb bag',   lb: 1,   speed: 1.25, cost: 150 },
-  { name: '2 lb bag',   lb: 2,   speed: 1.5,  cost: 2000 },
-  { name: '5 lb bag',   lb: 5,   speed: 2,    cost: 30000 },
-  { name: '25 lb sack', lb: 25,  speed: 3,    cost: 500000 },
-  { name: '50 lb sack', lb: 50,  speed: 4,    cost: 8e6 },
+  { name: '8 oz bag',   lb: 0.5, output: 1,    cost: 0 },
+  { name: '1 lb bag',   lb: 1,   output: 1.25, cost: 150 },
+  { name: '2 lb bag',   lb: 2,   output: 1.5,  cost: 2000 },
+  { name: '5 lb bag',   lb: 5,   output: 2,    cost: 30000 },
+  { name: '25 lb sack', lb: 25,  output: 3,    cost: 500000 },
+  { name: '50 lb sack', lb: 50,  output: 4,    cost: 8e6 },
 ];
 
 // Production runs in cycles, like AdVenture Capitalist. Each building type has a fixed cycle
@@ -66,6 +67,9 @@ const BAGS = [
 // A batch is rate * cycle, so the average output per second matches the rate above.
 // Trucks are different: their "cycle" is the trip, and their batch is however much they loaded.
 const CYCLE_BY_TIER = [1, 3, 6, 12, 24];   // seconds, tier 1..5 within each stage
+// Each stage's cycles take this many times as long as the farm cycle of the same tier.
+// Speed upgrades multiply every building the same way, so these ratios hold when maxed.
+const CYCLE_MULT = { grow: 1, roast: 2, pack: 2.5, brew: 1 };
 const MANAGER_MULT = 10;                    // manager price = building base cost * this
 // Only tier 1 of each stage is open at the start of a run. Higher tiers are unlocked in the
 // Expansion tab for money, once you own enough of the tier below: a full farm (250 plants)
@@ -76,7 +80,7 @@ for (const st of STAGE_ORDER) {
   BUILDINGS.filter(b => b.stage === st).forEach((b, i, list) => {
     const farm = st === 'grow';
     if (st === 'ship') { b.cycle = b.trip; b.rate = b.cap / b.trip; } // rate = lb/s when sent full
-    else b.cycle = CYCLE_BY_TIER[i];
+    else b.cycle = CYCLE_BY_TIER[i] * CYCLE_MULT[st];
     b.manager = b.cost * MANAGER_MULT * (farm ? 10 : 1); // plants are cheap, managers aren't
     b.tier = i + 1;
     b.growth = farm ? PLANT_GROWTH : GROWTH;
@@ -286,16 +290,16 @@ function mods(s) {
 }
 
 // Seconds per cycle (or trip) for a building type.
-// Packers also speed up with bigger bags.
 function cycleTime(s, id, m = mods(s)) {
-  const b = bld(id);
-  return b.cycle / (m.speed[id] || 1) / (b.stage === 'pack' ? BAGS[s.bag].speed : 1);
+  return bld(id).cycle / (m.speed[id] || 1);
 }
 // What one cycle of all copies handles, in lb. Trucks: total capacity.
+// Packers also handle more with bigger bags.
 function batch(s, id, m = mods(s)) {
   const b = bld(id);
   if (b.stage === 'ship') return s.owned[id] * b.cap * m.ship * m.all;
-  return s.owned[id] * b.rate * b.cycle * m[b.stage] * m.all;
+  const bags = b.stage === 'pack' ? BAGS[s.bag].output : 1;
+  return s.owned[id] * b.rate * b.cycle * bags * m[b.stage] * m.all;
 }
 const capacity = (s, id, m = mods(s)) => batch(s, id, m);
 

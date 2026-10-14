@@ -144,7 +144,7 @@
         E.BAGS.slice(1).map((g, i) => `<button class="item" data-bag="${i + 1}">
           <span class="t">${g.name}<span class="own" data-own></span></span>
           <span class="p" data-cost></span>
-          <span class="d">Bigger bags fill faster: packing cycles run ${g.speed}x as fast as with 8 oz bags (${E.BAGS[i].name}s: ${E.BAGS[i].speed}x).</span></button>`).join('') + `</div></div>` +
+          <span class="d">Bigger bags fill faster: each packing cycle handles ${g.output}x as much as with 8 oz bags (${E.BAGS[i].name}s: ${E.BAGS[i].output}x).</span></button>`).join('') + `</div></div>` +
         `<div class="group" style="--c:var(--ink)"><h4>Own your distribution</h4><div class="list">` +
         E.DISTRIBUTION.map(d => `<button class="item" data-dist="${d.id}">
           <span class="t">${d.name}<span class="own" data-own></span></span>

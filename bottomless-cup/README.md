@@ -1,7 +1,7 @@
 # Bottomless Cup (prototype)
 
 An idle coffee game: plant coffee on your farms (250 plants each), roast it, pack it into bags
-(8 oz up to 50 lb sacks; bigger bags pack faster), and load it onto trucks that drive it to the buyer. Send a truck when it's full,
+(8 oz up to 50 lb sacks; bigger bags pack more per cycle), and load it onto trucks that drive it to the buyer. Send a truck when it's full,
 or early if you want the money sooner. Grow into your own distribution network. Prestige = **Sell the Business**
 (Reputation Stars). Ascension = **Go Global** (Origin Tokens, Legacy perks); the first one opens **coffee shops**,
 which brew your coffee into cups that sell for more.

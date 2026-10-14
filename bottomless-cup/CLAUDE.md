@@ -5,7 +5,7 @@ The owner is new to game dev: explain changes in plain terms and keep the code s
 
 ## How it fits together
 - `src/engine.js` holds all game rules and balance numbers. It has no DOM code, so it also runs in Node.
-  The chain, in lb: farms (plants, 250 per farm) -> roasters -> packing (bag size 8 oz to 50 lb; bigger bags make packing cycles faster) -> trucks
+  The chain, in lb: farms (plants, 250 per farm) -> roasters -> packing (bag size 8 oz to 50 lb; bigger bags pack more lb per cycle; roaster cycles take 2x and packing 2.5x the farm cycle of the same tier) -> trucks
   (load until full or sent early, paid on delivery). Coffee shops open after the first Go Global.
   Buildings, distribution, beans, upgrades, Legacy perks, prestige/ascension formulas and offline progress all live here.
 - `src/ui.js` is the browser interface (tabs, buttons, game loop, saving to localStorage, `window.BC` dev cheats).
@@ -26,4 +26,4 @@ The owner is new to game dev: explain changes in plain terms and keep the code s
   The save key is `bottomless-cup-save-v3` (farms/roasters/packing/trucks); older v1 and v2 saves are not loaded.
 - The design doc with the current numbers lives in Claude Docs. Mention which sections a change affects.
 - Current pacing targets: first prestige at about 25 min, first ascension at about 3.5 h.
-- Pacing as of bag sizes speeding up packing: first sale ~26 min, first ascension ~3 h 29 m, second ~3 h 20 m.
+- Pacing as of roast 2x / pack 2.5x cycles (bags add output): first sale ~27 min, first ascension ~3 h 34 m, second ~3 h 21 m.
