@@ -1119,7 +1119,8 @@ if (typeof module !== 'undefined') module.exports = Engine;
         row.querySelector('[data-own]').textContent = ownedTxt(b, owned);
         const out = E.batch(S, id, m);
         row.querySelector('[data-batch]').textContent = !owned ? (truck ? `${lb(b.cap)} each, ${secs(ct)} trip` : `${secs(ct)} cycle`)
-          : truck ? (road ? `On the road with ${lb(S.cargo[id])} · back in ${secs(S.trip[id])}` : `Loading ${lb(loaded)} / ${lb(out)} · ${secs(ct)} trip`)
+          : truck ? (road ? `On the road with ${lb(S.cargo[id])} (${money(S.cargo[id] * E.lbPrice(S, m))}) · back in ${secs(S.trip[id])}`
+            : `Loading ${lb(loaded)} / ${lb(out)} (${money(loaded * E.lbPrice(S, m))}) · ${secs(ct)} trip`)
           : b.stage === 'pack' ? `+${fmt(out / E.bagLb(S))} ${E.BAGS[S.bag].name}s (${lb(out)}) every ${secs(ct)}`
           : b.stage === 'brew' ? `+${fmt(out * E.CUPS_PER_LB * b.yield * m.yield)} cups every ${secs(ct)}`
           : `+${lb(out)} every ${secs(ct)}`;
